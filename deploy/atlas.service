@@ -1,0 +1,16 @@
+[Unit]
+Description=Atlas Round-Robin Discord Bot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=postgres
+# Adjust working directory to where you clone the repo
+WorkingDirectory=/opt/atlas-bot
+ExecStart=/opt/atlas-bot/venv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+EnvironmentFile=/opt/atlas-bot/.env
+
+[Install]
+WantedBy=multi-user.target
