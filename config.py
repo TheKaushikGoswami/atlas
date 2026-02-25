@@ -14,6 +14,7 @@ class Config:
     # Project root
     BASE_DIR = Path(__file__).parent
     DATA_DIR = BASE_DIR / "data"
+    SUGGESTIONS_FILE = DATA_DIR / "suggestions.json"
 
 config = Config()
 

@@ -41,7 +41,15 @@ class GameEngine:
         Process a player's answer.
         Returns a Result object with the outcome.
         """
+        if self.state.is_game_over:
+            return Result(AnswerStatus.INVALID_WORD, "Game is already over!", self.state.current_player)
+
         player = self.state.current_player
+        if player.is_eliminated:
+            # This should ideally not happen if turn advancement is correct
+            self._advance_turn()
+            player = self.state.current_player
+
         word = word.strip()
         
         if not word:
@@ -80,12 +88,14 @@ class GameEngine:
 
     async def handle_timeout(self) -> TimeoutResult:
         """Handle turn timeout."""
+        from config import config
         player = self.state.current_player
         msg = "Time's up! You took too long to answer."
         logger.info(f"Timeout for {player.name}")
         
         # Timeout is a strike
-        player.strikes += 1
+        if not player.is_eliminated:
+            player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
         eliminated = player.is_eliminated
         
         if eliminated:
@@ -105,7 +115,11 @@ class GameEngine:
 
     async def _apply_strike(self, player: Player, status: AnswerStatus, message: str) -> Result:
         """Apply a strike to the current player."""
-        player.strikes += 1
+        from config import config
+        
+        if not player.is_eliminated:
+            player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
+        
         eliminated = player.is_eliminated
         
         # Advanced turn
@@ -121,6 +135,33 @@ class GameEngine:
             eliminated=eliminated,
             winner=winner
         )
+
+    def leave_game(self, user_id: int) -> tuple[bool, Optional[Player]]:
+        """
+        Manually remove a player from the game.
+        Returns (success, winner).
+        """
+        from config import config
+        target_player = None
+        for p in self.state.players:
+            if p.id == user_id:
+                target_player = p
+                break
+        
+        if not target_player or target_player.is_eliminated:
+            return False, None
+
+        is_current = (self.state.current_player.id == user_id)
+        
+        # Eliminate player
+        target_player.strikes = config.MAX_STRIKES
+        logger.info(f"Player {target_player.name} left the game.")
+
+        # Advance turn if it was their turn
+        if is_current and not self.state.is_game_over:
+            self._advance_turn()
+            
+        return True, self._check_winner()
 
     def _advance_turn(self):
         """Move current_index to the next active player."""

@@ -11,6 +11,58 @@ from game.engine import GameEngine, AnswerStatus, Result
 
 logger = logging.getLogger(__name__)
 
+class LocationSuggestionView(discord.ui.View):
+    def __init__(self, location: str):
+        super().__init__(timeout=60)
+        self.location = location
+
+    @discord.ui.button(label="Request to Add Location", style=discord.ButtonStyle.secondary, emoji="📍")
+    async def suggest(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"User {interaction.user.name} suggested adding: {self.location}")
+        
+        from config import config
+        import json
+        import datetime
+        
+        # Ensure data dir exists
+        config.DATA_DIR.mkdir(exist_ok=True)
+        
+        suggestion = {
+            "location": self.location,
+            "suggested_by": f"{interaction.user.name}#{interaction.user.discriminator}",
+            "user_id": interaction.user.id,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        suggestions = []
+        if config.SUGGESTIONS_FILE.exists():
+            try:
+                with open(config.SUGGESTIONS_FILE, "r", encoding="utf-8") as f:
+                    suggestions = json.load(f)
+            except Exception as e:
+                logger.error(f"Error reading suggestions file: {e}")
+        
+        # Avoid duplicate suggestions for the same location
+        if not any(s["location"].lower() == self.location.lower() for s in suggestions):
+            suggestions.append(suggestion)
+            try:
+                with open(config.SUGGESTIONS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(suggestions, f, indent=4)
+            except Exception as e:
+                logger.error(f"Error writing suggestions file: {e}")
+        
+        await interaction.response.send_message(
+            f"✅ Thanks! Your request to add '**{self.location}**' has been saved to the review queue.",
+            ephemeral=True
+        )
+        button.disabled = True
+        await interaction.edit_original_response(view=self)
+
+    @app_commands.command(name="ping", description="Check the bot's latency.")
+    async def ping(self, interaction: discord.Interaction):
+        latency = round(self.bot.latency * 1000)
+        await interaction.response.send_message(f"🏓 Pong! Latency: **{latency}ms**")
+
 class AtlasCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -81,7 +133,7 @@ class AtlasCog(commands.Cog):
         embed.add_field(name="Current Player", value=f"{players[0].name}", inline=False)
         embed.add_field(name="Rule", value="First player can start with **any** geographical place!", inline=False)
         
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(content=f"🔔 <@{players[0].id}>, you start!", embed=embed)
         
         # Start timer
         self._start_timer(channel_id)
@@ -108,6 +160,47 @@ class AtlasCog(commands.Cog):
         self._cleanup_game(channel_id)
         await interaction.response.send_message("🛑 Game has been stopped and cleared.")
 
+    @app_commands.command(name="leave", description="Leave the current game or lobby.")
+    async def leave(self, interaction: discord.Interaction):
+        channel_id = interaction.channel_id
+        user_id = interaction.user.id
+        
+        # 1. Handle Lobby
+        if channel_id in self.lobbies:
+            success, message = self.lobbies[channel_id].leave(user_id)
+            await interaction.response.send_message(message, ephemeral=not success)
+            return
+            
+        # 2. Handle Active Game
+        if channel_id in self.engines:
+            engine = self.engines[channel_id]
+            player_name = interaction.user.display_name
+            success, winner = engine.leave_game(user_id)
+            
+            if not success:
+                await interaction.response.send_message("❌ You are not an active player in this game.", ephemeral=True)
+                return
+            
+            await interaction.response.send_message(f"🚪 **{player_name}** has left the game and been eliminated.")
+            
+            if winner:
+                embed = discord.Embed(
+                    title="🏆 GAME OVER!",
+                    description=f"Everyone else left! Congratulations **{winner.name}**, you won by default!",
+                    color=discord.Color.gold()
+                )
+                await interaction.followup.send(embed=embed)
+                self._cleanup_game(channel_id)
+            else:
+                # If it was their turn, notify the next player
+                next_player = engine.state.current_player
+                letter_hint = engine.state.current_letter.upper() if engine.state.current_letter else "ANY"
+                await interaction.followup.send(f"🔤 <@{next_player.id}>, turn passes to you! Letter is **{letter_hint}**.")
+                self._start_timer(channel_id)
+            return
+
+        await interaction.response.send_message("❌ No active game or lobby in this channel.", ephemeral=True)
+
     @app_commands.command(name="status", description="Show the current game status.")
     async def status(self, interaction: discord.Interaction):
         channel_id = interaction.channel_id
@@ -122,7 +215,7 @@ class AtlasCog(commands.Cog):
         embed.add_field(name="Current Turn", value=f"{state.current_player.name}", inline=True)
         embed.add_field(name="Required Letter", value=f"**{state.current_letter.upper() if state.current_letter else 'ANY'}**", inline=True)
         
-        scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (2 - p.strikes)}" for p in state.players])
+        scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (self.bot.config.MAX_STRIKES - p.strikes)}" for p in state.players])
         embed.add_field(name="Scoreboard (Strikes)", value=scoreboard, inline=False)
         embed.add_field(name="Words Used", value=str(len(state.used_words)), inline=True)
         
@@ -179,7 +272,7 @@ class AtlasCog(commands.Cog):
         embed.set_footer(text=f"Letter: {result.next_letter.upper()}")
         
         await message.channel.send(embed=embed)
-        await message.channel.send(f"🔤 **{next_player.name}**, name a geographical place starting with **{result.next_letter.upper()}**!")
+        await message.channel.send(f"🔤 <@{next_player.id}>, your turn! Name a geographical place starting with **{result.next_letter.upper()}**!")
         
         self._start_timer(message.channel.id)
 
@@ -189,7 +282,7 @@ class AtlasCog(commands.Cog):
         
         embed = discord.Embed(title=title, description=result.message, color=color)
         embed.add_field(name="Player", value=message.author.display_name, inline=True)
-        embed.add_field(name="Strikes", value=f"{result.player.strikes}/2", inline=True)
+        embed.add_field(name="Strikes", value=f"{result.player.strikes}/{self.bot.config.MAX_STRIKES}", inline=True)
         
         if result.winner:
             embed.title = "🏆 GAME OVER!"
@@ -203,8 +296,13 @@ class AtlasCog(commands.Cog):
         letter_hint = result.next_letter.upper() if result.next_letter else "ANY"
         embed.set_footer(text=f"Same-letter rule applies. Next up: {next_player.name} | Letter: {letter_hint}")
         
-        await message.channel.send(embed=embed)
-        await message.channel.send(f"🔤 **{next_player.name}**, turn passes to you. Still waiting for a place starting with **{letter_hint}**!")
+        view = None
+        if result.status == AnswerStatus.INVALID_WORD:
+            # Add the "Request to Add Location" button
+            view = LocationSuggestionView(message.content.strip())
+
+        await message.channel.send(embed=embed, view=view)
+        await message.channel.send(f"🔤 <@{next_player.id}>, turn passes to you! Still waiting for a place starting with **{letter_hint}**!")
         
         self._start_timer(message.channel.id)
 
@@ -236,7 +334,7 @@ class AtlasCog(commands.Cog):
                     if res.eliminated: title = "⏰ ELIMINATED ON TIMEOUT!"
                     
                     embed = discord.Embed(title=title, description=f"**{res.player.name}** failed to answer in time.", color=color)
-                    embed.add_field(name="Strikes", value=f"{res.strikes}/2")
+                    embed.add_field(name="Strikes", value=f"{res.strikes}/{self.bot.config.MAX_STRIKES}")
                     
                     if res.winner:
                         embed.title = "🏆 WINNER!"
@@ -248,7 +346,7 @@ class AtlasCog(commands.Cog):
                     next_player = engine.state.current_player
                     letter_hint = res.next_letter.upper() if res.next_letter else "ANY"
                     await channel.send(embed=embed)
-                    await channel.send(f"🔤 **{next_player.name}**, your turn! Letter is still **{letter_hint}**.")
+                    await channel.send(f"🔤 <@{next_player.id}>, your turn! Letter is still **{letter_hint}**.")
                     
                     self._start_timer(channel_id)
         except asyncio.CancelledError:
