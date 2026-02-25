@@ -60,10 +60,7 @@ class LocationSuggestionView(discord.ui.View):
         button.disabled = True
         await interaction.edit_original_response(view=self)
 
-    @app_commands.command(name="ping", description="Check the bot's latency.")
-    async def ping(self, interaction: discord.Interaction):
-        latency = round(self.bot.latency * 1000)
-        await interaction.response.send_message(f"🏓 Pong! Latency: **{latency}ms**")
+
 
 class LeaderboardView(discord.ui.View):
     def __init__(self, cog):
@@ -100,6 +97,11 @@ class AtlasCog(commands.Cog):
             return
         synced = await self.bot.tree.sync()
         await ctx.send(f"✅ Synced {len(synced)} slash commands!")
+
+    @app_commands.command(name="ping", description="Check the bot's latency.")
+    async def ping(self, interaction: discord.Interaction):
+        latency = round(self.bot.latency * 1000)
+        await interaction.response.send_message(f"🏓 Pong! Latency: **{latency}ms**")
 
     def get_timeout(self):
         return config.TURN_TIMEOUT
