@@ -4,12 +4,13 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=postgres
-# Adjust working directory to where you clone the repo
+# Change 'root' to your username if you cloned into home
+User=root
+# Adjust working directory to where you cloned the repo (e.g. /root/atlas)
 WorkingDirectory=/opt/atlas-bot
 ExecStart=/opt/atlas-bot/venv/bin/python main.py
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 EnvironmentFile=/opt/atlas-bot/.env
 
 [Install]

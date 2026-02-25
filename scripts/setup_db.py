@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 GEONAMES_BASE_URL = "http://download.geonames.org/export/dump/"
 SOURCES = {
     "IN": f"{GEONAMES_BASE_URL}IN.zip",
-    "Global": f"{GEONAMES_BASE_URL}cities15000.zip",  # Starting with cities15000 for speed, can be upgraded to allCountries
+    "Global": f"{GEONAMES_BASE_URL}cities15000.zip",
+    "Countries": f"{GEONAMES_BASE_URL}countryInfo.txt",
     "Alternate": f"{GEONAMES_BASE_URL}alternateNamesV2.zip"
 }
 
@@ -224,28 +225,93 @@ def seed_source(file_path, source_name, is_zip=True):
     conn.close()
     logger.info(f"Finished seeding {source_name}. Total unique records inserted: {count}")
 
+def seed_countries(file_path):
+    conn = psycopg2.connect(config.DATABASE_URL)
+    cur = conn.cursor()
+    
+    logger.info("Processing source: Countries...")
+    
+    count = 0
+    batch = []
+    
+    # Fail-safe list of all 195+ countries to ensure 100% coverage
+    FAILSAFE_COUNTRIES = [
+        "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
+        "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan",
+        "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia",
+        "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica",
+        "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt",
+        "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon",
+        "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana",
+        "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland",
+        "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan",
+        "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar",
+        "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia",
+        "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal",
+        "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan",
+        "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar",
+        "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia",
+        "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa",
+        "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan",
+        "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu",
+        "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam",
+        "Yemen", "Zambia", "Zimbabwe"
+    ]
+
+    for country in FAILSAFE_COUNTRIES:
+        normalised = normalise_name(country)
+        batch.append((normalised, country, "--", "Failsafe"))
+
+    # Also still process the file if it exists for extra coverage
+    if file_path and file_path.exists():
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith("#"): continue
+                row = line.split("\t")
+                if len(row) > 4:
+                    country_name = row[4]
+                    iso_code = row[0]
+                    normalised = normalise_name(country_name)
+                    if normalised:
+                        batch.append((normalised, country_name, iso_code, "Countries"))
+
+    def execute_batch(cursor, data):
+        query = """
+            INSERT INTO geography (name_normalised, name_display, country_code, source)
+            VALUES %s
+            ON CONFLICT (name_normalised) DO NOTHING
+        """
+        execute_values(cursor, query, data)
+        conn.commit()
+
+    if batch:
+        execute_batch(cur, batch)
+        count = len(batch)
+    
+    conn.close()
+    logger.info(f"Finished seeding Countries. Failsafe activated. Total country records: {count}")
+
 async def main():
     setup_postgres()
     
-    # Download tasks
-    # 1. IN.zip
-    # 2. cities15000.zip (Global backup)
-    # 3. alternateNamesV2 (Optional but good)
-    
     in_zip = DATA_DIR / "IN.zip"
     global_zip = DATA_DIR / "cities15000.zip"
+    countries_txt = DATA_DIR / "countryInfo.txt"
     
     await asyncio.gather(
         download_file(SOURCES["IN"], in_zip),
-        download_file(SOURCES["Global"], global_zip)
+        download_file(SOURCES["Global"], global_zip),
+        download_file(SOURCES["Countries"], countries_txt)
     )
     
     # Seed India first (high priority)
     seed_source(in_zip, "IN")
-    # Seed Global next
+    # Seed Global
     seed_source(global_zip, "Global")
+    # Seed Countries specifically (Fail-safe included)
+    seed_countries(countries_txt)
     
-    logger.info("Database seeding complete!")
+    logger.info("Database seeding complete! All countries should now be valid.")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -6,7 +6,7 @@ async def test():
     lookup = GeoLookup(config.DATABASE_URL)
     await lookup.connect()
     
-    cities = ["Mumbai", "London", "New York City", "Delhi", "Bengaluru"]
+    cities = ["Mumbai", "London", "Pakistan", "New York City", "Delhi", "Bengaluru"]
     for city in cities:
         is_valid = await lookup.is_valid(city)
         print(f"Checking '{city}': {'✅ Valid' if is_valid else '❌ Not Found'}")
