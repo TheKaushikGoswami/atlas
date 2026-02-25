@@ -94,6 +94,13 @@ def setup_postgres():
                 source TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_geo_name ON geography(name_normalised);
+
+            CREATE TABLE IF NOT EXISTS leaderboard (
+                guild_id BIGINT,
+                user_id BIGINT,
+                wins INT DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id)
+            );
         """)
     conn.close()
 

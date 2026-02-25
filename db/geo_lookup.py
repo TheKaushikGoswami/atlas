@@ -58,6 +58,49 @@ class GeoLookup:
             logger.error(f"Error looking up name '{name}': {e}")
             return False
 
+    async def record_win(self, guild_id: int, user_id: int):
+        """Increment win count for a user in a specific guild."""
+        if not self.pool:
+            await self.connect()
+        try:
+            await self.pool.execute("""
+                INSERT INTO leaderboard (guild_id, user_id, wins)
+                VALUES ($1, $2, 1)
+                ON CONFLICT (guild_id, user_id)
+                DO UPDATE SET wins = leaderboard.wins + 1
+            """, guild_id, user_id)
+            logger.info(f"Recorded win for user {user_id} in guild {guild_id}")
+        except Exception as e:
+            logger.error(f"Failed to record win: {e}")
+
+    async def get_leaderboard(self, guild_id: int, limit: int = 10):
+        """Get top players for a guild."""
+        if not self.pool:
+            await self.connect()
+        try:
+            return await self.pool.fetch("""
+                SELECT user_id, wins
+                FROM leaderboard
+                WHERE guild_id = $1
+                ORDER BY wins DESC
+                LIMIT $2
+            """, guild_id, limit)
+        except Exception as e:
+            logger.error(f"Failed to fetch leaderboard: {e}")
+            return []
+
+    async def reset_leaderboard(self, guild_id: int):
+        """Reset the leaderboard for a specific guild."""
+        if not self.pool:
+            await self.connect()
+        try:
+            await self.pool.execute("DELETE FROM leaderboard WHERE guild_id = $1", guild_id)
+            logger.info(f"Reset leaderboard for guild {guild_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to reset leaderboard: {e}")
+            return False
+
 if __name__ == "__main__":
     # For quick testing
     import asyncio

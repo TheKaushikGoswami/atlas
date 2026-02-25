@@ -64,6 +64,24 @@ class LocationSuggestionView(discord.ui.View):
         latency = round(self.bot.latency * 1000)
         await interaction.response.send_message(f"🏓 Pong! Latency: **{latency}ms**")
 
+class LeaderboardView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Reset Leaderboard", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You need 'Manage Messages' permission to reset the leaderboard.", ephemeral=True)
+            return
+            
+        success = await self.cog.bot.geo_lookup.reset_leaderboard(interaction.guild_id)
+        if success:
+            await interaction.response.send_message("✅ Leaderboard has been cleared for this server.")
+            self.stop()
+        else:
+            await interaction.response.send_message("❌ Failed to reset leaderboard.", ephemeral=True)
+
 class AtlasCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -187,6 +205,7 @@ class AtlasCog(commands.Cog):
                     color=discord.Color.gold()
                 )
                 await interaction.followup.send(embed=embed)
+                await self._record_win(interaction.guild_id, winner)
                 self._cleanup_game(channel_id)
             else:
                 # If it was their turn, notify the next player
@@ -217,6 +236,41 @@ class AtlasCog(commands.Cog):
         embed.add_field(name="Words Used", value=str(len(state.used_words)), inline=True)
         
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="leaderboard", description="Show the top players in this server.")
+    async def leaderboard(self, interaction: discord.Interaction):
+        guild_id = interaction.guild_id
+        rows = await self.bot.geo_lookup.get_leaderboard(guild_id)
+        
+        if not rows:
+            await interaction.response.send_message("📉 The leaderboard is currently empty. Start playing to earn wins!", ephemeral=True)
+            return
+
+        description = ""
+        for i, row in enumerate(rows):
+            description += f"**{i+1}.** <@{row['user_id']}> — {row['wins']} wins\n"
+
+        embed = discord.Embed(
+            title=f"🏆 {interaction.guild.name} Leaderboard",
+            description=description,
+            color=discord.Color.gold()
+        )
+        
+        view = LeaderboardView(self)
+        await interaction.response.send_message(embed=embed, view=view)
+
+    @app_commands.command(name="sync", description="Force sync slash commands (Admin only).")
+    async def sync(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to sync commands.", ephemeral=True)
+            return
+            
+        await interaction.response.defer(ephemeral=True)
+        try:
+            synced = await self.bot.tree.sync()
+            await interaction.followup.send(f"✅ Successfully synced {len(synced)} commands.")
+        except Exception as e:
+            await interaction.followup.send(f"❌ Sync failed: {e}")
 
     # --- Message Listener ---
 
@@ -337,6 +391,7 @@ class AtlasCog(commands.Cog):
                         embed.title = "🏆 WINNER!"
                         embed.description += f"\n\nCongratulations **{res.winner.name}**, you won by default!"
                         await channel.send(embed=embed)
+                        await self._record_win(channel_id, res.winner)
                         self._cleanup_game(channel_id)
                         return
                         
@@ -348,6 +403,11 @@ class AtlasCog(commands.Cog):
                     self._start_timer(channel_id)
         except asyncio.CancelledError:
             pass
+
+    async def _record_win(self, guild_id: int, player: Player):
+        """Helper to record a win in the database."""
+        await self.bot.geo_lookup.record_win(guild_id, player.id)
+        logger.info(f"Win recorded for {player.name} in guild {guild_id}")
 
     def _cleanup_game(self, channel_id: int):
         self._cancel_timer(channel_id)
