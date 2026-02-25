@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from game.lobby import Lobby
 from game.state import GameState
 from game.engine import GameEngine, AnswerStatus, Result
+from game.player import Player
 from config import config
 
 logger = logging.getLogger(__name__)
