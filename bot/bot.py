@@ -21,10 +21,15 @@ class AtlasBot(commands.Bot):
         logger.info(f"Bot is online as {self.user} (ID: {self.user.id})")
         logger.info(f"Connected to {len(self.guilds)} guilds.")
         
-        # Syncing slash commands on ready is also common
+        # Syncing slash commands to all guilds for immediate availability
         try:
+            for guild in self.guilds:
+                await self.tree.sync(guild=guild)
+                logger.info(f"Synced commands to guild: {guild.name} ({guild.id})")
+            
+            # Also sync globally
             synced = await self.tree.sync()
-            logger.info(f"Synced {len(synced)} application commands.")
+            logger.info(f"Synced {len(synced)} application commands globally.")
         except Exception as e:
             logger.error(f"Error syncing commands: {e}")
 

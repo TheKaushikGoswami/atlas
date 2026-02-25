@@ -92,6 +92,14 @@ class AtlasCog(commands.Cog):
         # channel_id -> asyncio.Task (Timer)
         self.timers: Dict[int, asyncio.Task] = {}
 
+    @commands.command(name="sync")
+    async def legacy_sync(self, ctx):
+        """Legacy prefix command to sync slash commands."""
+        if not ctx.author.guild_permissions.manage_messages:
+            return
+        synced = await self.bot.tree.sync()
+        await ctx.send(f"✅ Synced {len(synced)} slash commands!")
+
     def get_timeout(self):
         return config.TURN_TIMEOUT
 
