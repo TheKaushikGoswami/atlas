@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from game.lobby import Lobby
 from game.state import GameState
 from game.engine import GameEngine, AnswerStatus, Result
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -72,12 +73,8 @@ class AtlasCog(commands.Cog):
         self.engines: Dict[int, GameEngine] = {}
         # channel_id -> asyncio.Task (Timer)
         self.timers: Dict[int, asyncio.Task] = {}
-        
-        self.config = getattr(bot, "config", None) # fallback if not injected
-        self.turn_timeout = 30 # Default
 
     def get_timeout(self):
-        from config import config
         return config.TURN_TIMEOUT
 
     # --- Slash Commands ---
@@ -215,7 +212,7 @@ class AtlasCog(commands.Cog):
         embed.add_field(name="Current Turn", value=f"{state.current_player.name}", inline=True)
         embed.add_field(name="Required Letter", value=f"**{state.current_letter.upper() if state.current_letter else 'ANY'}**", inline=True)
         
-        scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (self.bot.config.MAX_STRIKES - p.strikes)}" for p in state.players])
+        scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (config.MAX_STRIKES - p.strikes)}" for p in state.players])
         embed.add_field(name="Scoreboard (Strikes)", value=scoreboard, inline=False)
         embed.add_field(name="Words Used", value=str(len(state.used_words)), inline=True)
         
@@ -282,7 +279,7 @@ class AtlasCog(commands.Cog):
         
         embed = discord.Embed(title=title, description=result.message, color=color)
         embed.add_field(name="Player", value=message.author.display_name, inline=True)
-        embed.add_field(name="Strikes", value=f"{result.player.strikes}/{self.bot.config.MAX_STRIKES}", inline=True)
+        embed.add_field(name="Strikes", value=f"{result.player.strikes}/{config.MAX_STRIKES}", inline=True)
         
         if result.winner:
             embed.title = "🏆 GAME OVER!"
@@ -334,7 +331,7 @@ class AtlasCog(commands.Cog):
                     if res.eliminated: title = "⏰ ELIMINATED ON TIMEOUT!"
                     
                     embed = discord.Embed(title=title, description=f"**{res.player.name}** failed to answer in time.", color=color)
-                    embed.add_field(name="Strikes", value=f"{res.strikes}/{self.bot.config.MAX_STRIKES}")
+                    embed.add_field(name="Strikes", value=f"{res.strikes}/{config.MAX_STRIKES}")
                     
                     if res.winner:
                         embed.title = "🏆 WINNER!"

@@ -28,8 +28,9 @@ async def run():
     # 2. Create the bot
     bot = create_bot()
     
-    # Inject geo_lookup into the bot for cogs to use
+    # Inject geo_lookup and config into the bot for cogs to use
     bot.geo_lookup = geo_lookup
+    bot.config = config
 
     #3. Start the bot
     async with bot:
