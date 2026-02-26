@@ -98,7 +98,7 @@ class AtlasCog(commands.Cog):
     @app_commands.command(name="help", description="Show information about the bot and commands.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="Atlas Bot — Help Guide",
+            title="🌍 Atlas Round-Robin — Help Guide",
             description=(
                 "**Atlas** is a geographical word game where players take turns naming places. "
                 "The last letter of one answer becomes the first letter of the next!\n\n"
@@ -110,16 +110,40 @@ class AtlasCog(commands.Cog):
             ),
             color=discord.Color.blue()
         )
-        embed.set_author(name="Atlas Bot", icon_url=self.bot.user.display_avatar.url)
+        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+        
         embed.add_field(
             name="🎮 Player Commands",
-            value="`/join`, `/leave`, `/status`, `/leaderboard`, `/ping`, `/help`"
+            value=(
+                "`/join` - Join the active lobby\n"
+                "`/leave` - Leave the game or lobby\n"
+                "`/status` - Check game progress\n"
+                "`/leaderboard` - See top players\n"
+                "`/ping` - Check bot latency"
+            ),
+            inline=False
         )
+        
         embed.add_field(
-            name="✨ Contact",
-            value="Developed by <@1384163020439158867>"
+            name="🛠️ Management Commands",
+            value=(
+                "`/start` - Start the game (Lobby only)\n"
+                "`/stop` - Stop the current game (Admin/Creator)\n"
+                "`/sync` - Refresh slash commands (Admin)"
+            ),
+            inline=False
         )
-        embed.set_footer(text="Atlas Bot - A geographical word game")
+        
+        embed.add_field(
+            name="✨ Credits",
+            value=(
+                "Developed by <@1384163020439158867>\n"
+                "Powered by a database of over 460,000 geographical locations."
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="Atlas Round-Robin v1.2 | Keep exploring the world!")
         await interaction.response.send_message(embed=embed)
 
     def get_timeout(self):
