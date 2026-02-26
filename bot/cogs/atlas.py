@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,7 +9,6 @@ from typing import Dict, Optional
 from game.lobby import Lobby
 from game.state import GameState
 from game.engine import GameEngine, AnswerStatus, Result
-from game.player import Player
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -62,24 +62,6 @@ class LocationSuggestionView(discord.ui.View):
 
 
 
-class LeaderboardView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=None)
-        self.cog = cog
-
-    @discord.ui.button(label="Reset Leaderboard", style=discord.ButtonStyle.danger, emoji="🗑️")
-    async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.manage_messages:
-            await interaction.response.send_message("❌ You need 'Manage Messages' permission to reset the leaderboard.", ephemeral=True)
-            return
-            
-        success = await self.cog.bot.geo_lookup.reset_leaderboard(interaction.guild_id)
-        if success:
-            await interaction.response.send_message("✅ Leaderboard has been cleared for this server.")
-            self.stop()
-        else:
-            await interaction.response.send_message("❌ Failed to reset leaderboard.", ephemeral=True)
-
 class AtlasCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -100,18 +82,22 @@ class AtlasCog(commands.Cog):
 
     @app_commands.command(name="ping", description="Check the bot's latency.")
     async def ping(self, interaction: discord.Interaction):
-        latency = round(self.bot.latency * 1000)
-        await interaction.response.send_message(f"🏓 Pong! Latency: **{latency}ms**")
-
-    def get_timeout(self):
-        return config.TURN_TIMEOUT
-
-    # --- Slash Commands ---
+        ws_latency = round(self.bot.latency * 1000)
+        start = time.perf_counter()
+        await interaction.response.send_message("🏓 Pinging...")
+        end = time.perf_counter()
+        api_latency = round((end - start) * 1000)
+        
+        embed = discord.Embed(title="🏓 Pong!", color=discord.Color.blue())
+        embed.add_field(name="🛰️ WebSocket", value=f"`{ws_latency}ms`", inline=True)
+        embed.add_field(name="⚡ API", value=f"`{api_latency}ms`", inline=True)
+        embed.set_footer(text="Lower API latency = closer VPS to Discord servers")
+        await interaction.edit_original_response(content=None, embed=embed)
 
     @app_commands.command(name="help", description="Show information about the bot and commands.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🌍 Atlas Round-Robin — Help Guide",
+            title="Atlas Bot — Help Guide",
             description=(
                 "**Atlas** is a geographical word game where players take turns naming places. "
                 "The last letter of one answer becomes the first letter of the next!\n\n"
@@ -123,40 +109,22 @@ class AtlasCog(commands.Cog):
             ),
             color=discord.Color.blue()
         )
-        
+        embed.set_author(name="Atlas Bot", icon_url=self.bot.user.display_avatar.url)
         embed.add_field(
             name="🎮 Player Commands",
-            value=(
-                "`/join` - Join the active lobby\n"
-                "`/leave` - Leave the game or lobby\n"
-                "`/status` - Check game progress\n"
-                "`/leaderboard` - See top players\n"
-                "`/ping` - Check bot latency"
-            ),
-            inline=False
+            value="`/join`, `/leave`, `/status`, `/leaderboard`, `/ping`, `/help`"
         )
-        
         embed.add_field(
-            name="🛠️ Management Commands",
-            value=(
-                "`/start` - Start the game (Lobby only)\n"
-                "`/stop` - Stop the current game (Admin/Creator)\n"
-                "`/sync` - Refresh slash commands (Admin)"
-            ),
-            inline=False
+            name="✨ Contact",
+            value="Developed by <@1384163020439158867>"
         )
-        
-        embed.add_field(
-            name="✨ Credits",
-            value=(
-                "Developed by **TheKaushikGoswami**\n"
-                "Powered by a database of over 460,000 geographical locations."
-            ),
-            inline=False
-        )
-        
-        embed.set_footer(text="Atlas Round-Robin v1.2 | Keep exploring the world!")
+        embed.set_footer(text="Atlas Bot - A geographical word game")
         await interaction.response.send_message(embed=embed)
+
+    def get_timeout(self):
+        return config.TURN_TIMEOUT
+
+    # --- Slash Commands ---
 
     @app_commands.command(name="join", description="Join the Atlas game lobby in this channel.")
     async def join(self, interaction: discord.Interaction):
@@ -302,36 +270,21 @@ class AtlasCog(commands.Cog):
     async def leaderboard(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
         rows = await self.bot.geo_lookup.get_leaderboard(guild_id)
-        
         if not rows:
-            await interaction.response.send_message("📉 The leaderboard is currently empty. Start playing to earn wins!", ephemeral=True)
+            await interaction.response.send_message("📉 The leaderboard is currently empty.", ephemeral=True)
             return
-
-        description = ""
-        for i, row in enumerate(rows):
-            description += f"**{i+1}.** <@{row['user_id']}> — {row['wins']} wins\n"
-
-        embed = discord.Embed(
-            title=f"🏆 {interaction.guild.name} Leaderboard",
-            description=description,
-            color=discord.Color.gold()
-        )
-        
-        view = LeaderboardView(self)
-        await interaction.response.send_message(embed=embed, view=view)
+        description = "\n".join([f"**{i+1}.** <@{row['user_id']}> — {row['wins']} wins" for i, row in enumerate(rows)])
+        embed = discord.Embed(title=f"🏆 {interaction.guild.name} Leaderboard", description=description, color=discord.Color.gold())
+        await interaction.response.send_message(embed=embed, view=LeaderboardView(self))
 
     @app_commands.command(name="sync", description="Force sync slash commands (Admin only).")
-    async def sync(self, interaction: discord.Interaction):
+    async def sync_slash(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.manage_messages:
-            await interaction.response.send_message("❌ You don't have permission to sync commands.", ephemeral=True)
+            await interaction.response.send_message("❌ No permission.", ephemeral=True)
             return
-            
         await interaction.response.defer(ephemeral=True)
-        try:
-            synced = await self.bot.tree.sync()
-            await interaction.followup.send(f"✅ Successfully synced {len(synced)} commands.")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Sync failed: {e}")
+        synced = await self.bot.tree.sync()
+        await interaction.followup.send(f"✅ Synced {len(synced)} commands.")
 
     # --- Message Listener ---
 
@@ -376,6 +329,7 @@ class AtlasCog(commands.Cog):
             embed.description += f"\n\nCongratulations **{result.winner.name}**, you won the game!"
             embed.color = discord.Color.gold()
             await message.channel.send(embed=embed)
+            await self._record_win(message.guild.id, result.winner)
             self._cleanup_game(message.channel.id)
             return
 
@@ -401,6 +355,7 @@ class AtlasCog(commands.Cog):
             embed.description += f"\n\nCongratulations **{result.winner.name}**, you won by default!"
             embed.color = discord.Color.gold()
             await message.channel.send(embed=embed)
+            await self._record_win(message.guild.id, result.winner)
             self._cleanup_game(message.channel.id)
             return
 
@@ -452,7 +407,7 @@ class AtlasCog(commands.Cog):
                         embed.title = "🏆 WINNER!"
                         embed.description += f"\n\nCongratulations **{res.winner.name}**, you won by default!"
                         await channel.send(embed=embed)
-                        await self._record_win(channel_id, res.winner)
+                        await self._record_win(channel.guild.id, res.winner)
                         self._cleanup_game(channel_id)
                         return
                         
