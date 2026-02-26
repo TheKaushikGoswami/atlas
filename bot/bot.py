@@ -20,6 +20,8 @@ class AtlasBot(commands.Bot):
     async def on_ready(self):
         logger.info(f"Bot is online as {self.user} (ID: {self.user.id})")
         logger.info(f"Connected to {len(self.guilds)} guilds.")
+
+        self.activity = discord.Activity(type=discord.ActivityType.playing, name="with maps 🗺️")
         
         # Syncing slash commands to all guilds for immediate availability
         try:
