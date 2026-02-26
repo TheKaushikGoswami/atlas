@@ -21,7 +21,9 @@ class AtlasBot(commands.Bot):
         logger.info(f"Bot is online as {self.user} (ID: {self.user.id})")
         logger.info(f"Connected to {len(self.guilds)} guilds.")
 
-        self.activity = discord.Activity(type=discord.ActivityType.playing, name="with maps 🗺️")
+        # Update presence to Discord
+        activity = discord.Activity(type=discord.ActivityType.playing, name="with maps 🗺️")
+        await self.change_presence(activity=activity)
         
         # Syncing slash commands to all guilds for immediate availability
         try:
@@ -44,6 +46,7 @@ def create_bot():
     bot = AtlasBot(
         command_prefix="!", # Still need a prefix for legacy, though we use slash
         intents=intents,
-        help_command=None
+        help_command=None,
+        activity=discord.Activity(type=discord.ActivityType.playing, name="with maps 🗺️")
     )
     return bot

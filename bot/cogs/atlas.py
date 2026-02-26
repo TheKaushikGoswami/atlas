@@ -98,7 +98,7 @@ class AtlasCog(commands.Cog):
     @app_commands.command(name="help", description="Show information about the bot and commands.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🌍 Atlas Round-Robin — Help Guide",
+            title="Atlas — Help Guide",
             description=(
                 "**Atlas** is a geographical word game where players take turns naming places. "
                 "The last letter of one answer becomes the first letter of the next!\n\n"
@@ -135,15 +135,15 @@ class AtlasCog(commands.Cog):
         )
         
         embed.add_field(
-            name="✨ Credits",
+            name="✨ About",
             value=(
-                "Developed by <@1384163020439158867>\n"
-                "Powered by a database of over 460,000 geographical locations."
+                "• Developed by <@1384163020439158867>\n"
+                "• Powered by a database of over 460,000 geographical locations."
             ),
             inline=False
         )
         
-        embed.set_footer(text="Atlas Round-Robin v1.2 | Keep exploring the world!")
+        embed.set_footer(text="Atlas v1.2 | Keep exploring the world!")
         await interaction.response.send_message(embed=embed)
 
     def get_timeout(self):
