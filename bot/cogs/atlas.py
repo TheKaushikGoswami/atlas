@@ -108,6 +108,56 @@ class AtlasCog(commands.Cog):
 
     # --- Slash Commands ---
 
+    @app_commands.command(name="help", description="Show information about the bot and commands.")
+    async def help(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🌍 Atlas Round-Robin — Help Guide",
+            description=(
+                "**Atlas** is a geographical word game where players take turns naming places. "
+                "The last letter of one answer becomes the first letter of the next!\n\n"
+                "**How to Play:**\n"
+                "1. Use `/join` to enter the lobby.\n"
+                "2. The creator uses `/start` to begin.\n"
+                "3. When it's your turn, type a city, country, or state name in the channel.\n"
+                "4. If you miss a turn or give a wrong answer, you get a strike. Lose too many and you're out!"
+            ),
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="🎮 Player Commands",
+            value=(
+                "`/join` - Join the active lobby\n"
+                "`/leave` - Leave the game or lobby\n"
+                "`/status` - Check game progress\n"
+                "`/leaderboard` - See top players\n"
+                "`/ping` - Check bot latency"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🛠️ Management Commands",
+            value=(
+                "`/start` - Start the game (Lobby only)\n"
+                "`/stop` - Stop the current game (Admin/Creator)\n"
+                "`/sync` - Refresh slash commands (Admin)"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="✨ Credits",
+            value=(
+                "Developed by **TheKaushikGoswami**\n"
+                "Powered by a database of over 460,000 geographical locations."
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="Atlas Round-Robin v1.2 | Keep exploring the world!")
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="join", description="Join the Atlas game lobby in this channel.")
     async def join(self, interaction: discord.Interaction):
         channel_id = interaction.channel_id
