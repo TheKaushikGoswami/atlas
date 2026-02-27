@@ -141,6 +141,7 @@ class AtlasCog(commands.Cog):
                 "`/join` - Join the active lobby\n"
                 "`/leave` - Leave the game or lobby\n"
                 "`/status` - Check game progress\n"
+                "`/players` - See who's still in the game\n"
                 "`/leaderboard` - See top players\n"
                 "`/ping` - Check bot latency"
             ),
@@ -324,6 +325,57 @@ class AtlasCog(commands.Cog):
         description = "\n".join([f"**{i+1}.** <@{row['user_id']}> — {row['wins']} wins" for i, row in enumerate(rows)])
         embed = discord.Embed(title=f"🏆 {interaction.guild.name} Leaderboard", description=description, color=discord.Color.gold())
         await interaction.response.send_message(embed=embed, view=LeaderboardView(self))
+
+    @app_commands.command(name="players", description="See who's still in the game.")
+    async def players(self, interaction: discord.Interaction):
+        channel_id = interaction.channel_id
+        
+        # 1. Active Game
+        if channel_id in self.engines:
+            engine = self.engines[channel_id]
+            state = engine.state
+            
+            embed = discord.Embed(
+                title="👥 Players in Game", 
+                description="List of all participants and their current status.",
+                color=discord.Color.blue()
+            )
+            
+            player_list = []
+            for p in state.players:
+                status_emoji = "✅" if not p.is_eliminated else "❌"
+                # Bold the name if they are active, strike through if eliminated
+                name_str = f"**{p.name}**" if not p.is_eliminated else f"~~{p.name}~~"
+                
+                turn_marker = " ⬅️ **TURN**" if p.id == state.current_player.id else ""
+                
+                player_line = f"{status_emoji} {name_str} — {p.strikes}/{config.MAX_STRIKES} strikes{turn_marker}"
+                player_list.append(player_line)
+            
+            embed.add_field(name="Player List", value="\n".join(player_list), inline=False)
+            embed.set_footer(text=f"Active: {len(state.active_players)} | Eliminated: {len(state.players) - len(state.active_players)}")
+            
+            await interaction.response.send_message(embed=embed)
+            return
+
+        # 2. Lobby
+        if channel_id in self.lobbies:
+            lobby = self.lobbies[channel_id]
+            
+            embed = discord.Embed(title="🏠 Players in Lobby", color=discord.Color.blue())
+            
+            if not lobby.players:
+                embed.description = "The lobby is currently empty."
+            else:
+                player_list = [f"• **{p.name}**" for p in lobby.players.values()]
+                embed.description = "\n".join(player_list)
+            
+            embed.set_footer(text=f"Total: {len(lobby.players)} players (Min 2 required)")
+            
+            await interaction.response.send_message(embed=embed)
+            return
+
+        await interaction.response.send_message("❌ No active game or lobby in this channel.", ephemeral=True)
 
     @app_commands.command(name="sync", description="Force sync slash commands (Admin only).")
     async def sync_slash(self, interaction: discord.Interaction):

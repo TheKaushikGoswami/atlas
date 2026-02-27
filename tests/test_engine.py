@@ -66,7 +66,6 @@ async def test_engine_elimination(game_engine):
     p1.strikes = 1
     
     game_engine.state.current_index = 0
-    result = await game_engine.submit_answer("InvalidPlace") # mock is_valid returns True by default, let's fix
     game_engine.geo_lookup.is_valid.return_value = False
     
     result = await game_engine.submit_answer("Fake")
