@@ -61,6 +61,29 @@ class LocationSuggestionView(discord.ui.View):
         button.disabled = True
         await interaction.edit_original_response(view=self)
 
+class LeaderboardView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Reset Leaderboard", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to reset the leaderboard.", ephemeral=True)
+            return
+
+        await self.cog.bot.geo_lookup.reset_leaderboard(interaction.guild_id)
+        
+        embed = discord.Embed(
+            title="📉 Leaderboard Reset",
+            description=f"The leaderboard for **{interaction.guild.name}** has been cleared by {interaction.user.mention}.",
+            color=discord.Color.red()
+        )
+        
+        # Disable the button after use
+        button.disabled = True
+        await interaction.response.edit_message(embed=embed, view=self)
+
 
 
 class AtlasCog(commands.Cog):
