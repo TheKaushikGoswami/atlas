@@ -315,6 +315,10 @@ class AtlasCog(commands.Cog):
     async def add(self, interaction: discord.Interaction, user: discord.Member):
         channel_id = interaction.channel_id
 
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to add players.", ephemeral=True)
+            return
+
         if channel_id not in self.engines:
             await interaction.response.send_message("❌ No active game in this channel.", ephemeral=True)
             return
