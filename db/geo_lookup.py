@@ -101,6 +101,34 @@ class GeoLookup:
             logger.error(f"Failed to reset leaderboard: {e}")
             return False
 
+    async def add_place(self, name: str, country_code: str = "--", source: str = "Discord") -> tuple[bool, str]:
+        """
+        Add a geographical place to the database.
+        Returns (success, message).
+        """
+        if not self.pool:
+            await self.connect()
+
+        normalised = normalise_name(name)
+        if not normalised:
+            return False, "Invalid place name."
+
+        try:
+            result = await self.pool.execute("""
+                INSERT INTO geography (name_normalised, name_display, country_code, source)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (name_normalised) DO NOTHING
+            """, normalised, name.strip(), country_code, source)
+            # asyncpg returns 'INSERT 0 1' on insert, 'INSERT 0 0' on conflict
+            if result == "INSERT 0 1":
+                logger.info(f"Added place '{name}' to database.")
+                return True, f"**{name.strip()}** has been added to the database!"
+            else:
+                return False, f"**{name.strip()}** already exists in the database."
+        except Exception as e:
+            logger.error(f"Failed to add place '{name}': {e}")
+            return False, f"Database error: {e}"
+
 if __name__ == "__main__":
     # For quick testing
     import asyncio

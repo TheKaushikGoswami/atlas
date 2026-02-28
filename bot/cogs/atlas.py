@@ -154,6 +154,7 @@ class AtlasCog(commands.Cog):
             value=(
                 "`/start` - Start the game (Lobby only)\n"
                 "`/stop` - Stop the current game (Admin/Creator)\n"
+                "`/addplace <name>` - Add a place to the database (Admin)\n"
                 "`/sync` - Refresh slash commands (Admin)"
             ),
             inline=False
@@ -427,6 +428,28 @@ class AtlasCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         synced = await self.bot.tree.sync()
         await interaction.followup.send(f"✅ Synced {len(synced)} commands.")
+
+    @app_commands.command(name="addplace", description="Add a geographical place to the database (Admin only).")
+    @app_commands.describe(place="The name of the place to add.")
+    async def addplace(self, interaction: discord.Interaction, place: str):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to add places.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        success, message = await self.bot.geo_lookup.add_place(place)
+
+        if success:
+            embed = discord.Embed(
+                title="📍 Place Added!",
+                description=message,
+                color=discord.Color.green()
+            )
+            embed.set_footer(text=f"Added by {interaction.user.display_name}")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {message}", ephemeral=True)
 
     # --- Message Listener ---
 
