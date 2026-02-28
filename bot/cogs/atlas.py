@@ -140,6 +140,7 @@ class AtlasCog(commands.Cog):
             value=(
                 "`/join` - Join the active lobby\n"
                 "`/leave` - Leave the game or lobby\n"
+                "`/add @user` - Add a player mid-game\n"
                 "`/status` - Check game progress\n"
                 "`/players` - See who's still in the game\n"
                 "`/leaderboard` - See top players\n"
@@ -203,6 +204,12 @@ class AtlasCog(commands.Cog):
             return
             
         lobby = self.lobbies[channel_id]
+        
+        # Only lobby members can start the game
+        if interaction.user.id not in lobby.players:
+            await interaction.response.send_message("❌ You must join the lobby first before starting the game.", ephemeral=True)
+            return
+        
         players, message = lobby.lock()
         
         if not players:
@@ -239,15 +246,22 @@ class AtlasCog(commands.Cog):
             await interaction.response.send_message("❌ No game or lobby active in this channel.", ephemeral=True)
             return
             
-        # Permission check: Creator or Manage Messages
+        # Permission check: lobby creator, active game participant, or Manage Messages
         is_creator = False
         if channel_id in self.lobbies:
             is_creator = interaction.user.id == self.lobbies[channel_id].creator_id
         
+        is_participant = False
+        if channel_id in self.engines:
+            is_participant = any(
+                p.id == interaction.user.id and not p.is_eliminated
+                for p in self.engines[channel_id].state.players
+            )
+        
         can_manage = interaction.user.guild_permissions.manage_messages
         
-        if not (is_creator or can_manage):
-            await interaction.response.send_message("❌ Only the game creator or admins can stop the game.", ephemeral=True)
+        if not (is_creator or is_participant or can_manage):
+            await interaction.response.send_message("❌ Only game participants or admins can stop the game.", ephemeral=True)
             return
             
         self._cleanup_game(channel_id)
@@ -294,6 +308,34 @@ class AtlasCog(commands.Cog):
             return
 
         await interaction.response.send_message("❌ No active game or lobby in this channel.", ephemeral=True)
+
+    @app_commands.command(name="add", description="Add a player to an active game.")
+    @app_commands.describe(user="The user to add to the game.")
+    async def add(self, interaction: discord.Interaction, user: discord.Member):
+        channel_id = interaction.channel_id
+
+        if channel_id not in self.engines:
+            await interaction.response.send_message("❌ No active game in this channel.", ephemeral=True)
+            return
+
+        if user.bot:
+            await interaction.response.send_message("❌ You can't add a bot to the game.", ephemeral=True)
+            return
+
+        engine = self.engines[channel_id]
+        success, message = engine.add_player(Player(id=user.id, name=user.display_name))
+
+        if not success:
+            await interaction.response.send_message(f"❌ {message}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="➕ Player Added!",
+            description=f"{user.mention} has been added to the game by {interaction.user.mention}.",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text=f"Total active players: {len(engine.state.active_players)}")
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="status", description="Show the current game status.")
     async def status(self, interaction: discord.Interaction):

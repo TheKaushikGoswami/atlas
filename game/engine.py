@@ -163,6 +163,22 @@ class GameEngine:
             
         return True, self._check_winner()
 
+    def add_player(self, player: Player) -> tuple[bool, str]:
+        """
+        Add a new player to an active game mid-round.
+        Returns (success, message).
+        """
+        if self.state.is_game_over:
+            return False, "The game is already over."
+
+        for p in self.state.players:
+            if p.id == player.id:
+                return False, f"**{player.name}** is already in this game."
+
+        self.state.players.append(player)
+        logger.info(f"Player {player.name} added to the game mid-round.")
+        return True, f"**{player.name}** has been added to the game!"
+
     def _advance_turn(self):
         """Move current_index to the next active player."""
         if not self.state.active_players:

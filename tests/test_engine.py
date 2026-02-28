@@ -81,3 +81,40 @@ async def test_engine_timeout(game_engine):
     assert res.player.id == 1
     assert res.strikes == 1
     assert game_engine.state.current_player.id == 2
+
+# --- Add Player Tests ---
+
+def test_add_player_success(game_engine):
+    new_player = Player(3, "P3")
+    success, msg = game_engine.add_player(new_player)
+    assert success is True
+    assert len(game_engine.state.players) == 3
+    assert game_engine.state.players[-1].id == 3
+    assert new_player in game_engine.state.active_players
+
+def test_add_player_duplicate(game_engine):
+    # P1 already exists
+    success, msg = game_engine.add_player(Player(1, "P1"))
+    assert success is False
+    assert len(game_engine.state.players) == 2
+
+def test_add_player_game_over(game_engine):
+    # Eliminate P1 so only P2 remains -> game over
+    from config import config
+    game_engine.state.players[0].strikes = config.MAX_STRIKES
+    assert game_engine.state.is_game_over is True
+
+    success, msg = game_engine.add_player(Player(3, "P3"))
+    assert success is False
+
+# --- /start Bug Fix Test ---
+
+def test_start_requires_lobby_membership():
+    lobby = Lobby(123, 456)
+    lobby.join(1, "Player1")
+    lobby.join(2, "Player2")
+
+    # User 999 never joined — should not be in lobby.players
+    assert 999 not in lobby.players
+    # User 1 did join
+    assert 1 in lobby.players
