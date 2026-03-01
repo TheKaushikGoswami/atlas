@@ -154,6 +154,7 @@ class AtlasCog(commands.Cog):
             value=(
                 "`/start` - Start the game (Lobby only)\n"
                 "`/stop` - Stop the current game (Admin/Creator)\n"
+                "`/kick @user` - Kick a player (Admin)\n"
                 "`/addplace <name>` - Add a place to the database (Admin)\n"
                 "`/sync` - Refresh slash commands (Admin)"
             ),
@@ -341,6 +342,57 @@ class AtlasCog(commands.Cog):
         )
         embed.set_footer(text=f"Total active players: {len(engine.state.active_players)}")
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="kick", description="Kick a player from the current game or lobby (Admin only).")
+    @app_commands.describe(user="The user to kick.")
+    async def kick(self, interaction: discord.Interaction, user: discord.Member):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to kick players.", ephemeral=True)
+            return
+
+        channel_id = interaction.channel_id
+        user_id = user.id
+        player_name = user.display_name
+
+        # 1. Handle Lobby
+        if channel_id in self.lobbies:
+            success, message = self.lobbies[channel_id].leave(user_id)
+            if success:
+                await interaction.response.send_message(f"👢 **{player_name}** has been kicked from the lobby by {interaction.user.mention}.")
+            else:
+                await interaction.response.send_message(f"❌ {player_name} is not in the lobby.", ephemeral=True)
+            return
+
+        # 2. Handle Active Game
+        if channel_id in self.engines:
+            engine = self.engines[channel_id]
+            success, winner = engine.leave_game(user_id)
+
+            if not success:
+                await interaction.response.send_message(f"❌ {player_name} is not an active player in this game.", ephemeral=True)
+                return
+
+            await interaction.response.send_message(f"👢 **{player_name}** has been kicked from the game by {interaction.user.mention}.")
+
+            if winner:
+                embed = discord.Embed(
+                    title="🏆 GAME OVER!",
+                    description=f"Only one player remains! Congratulations **{winner.name}**, you won!",
+                    color=discord.Color.gold()
+                )
+                await interaction.followup.send(embed=embed)
+                await self._record_win(interaction.guild_id, winner)
+                self._cleanup_game(channel_id)
+            else:
+                # If it was their turn, notify the next player
+                next_player = engine.state.current_player
+                letter_hint = engine.state.current_letter.upper() if engine.state.current_letter else "ANY"
+                await interaction.followup.send(f"🔤 <@{next_player.id}>, turn passes to you! Letter is **{letter_hint}**.")
+                self._start_timer(channel_id)
+            return
+
+        await interaction.response.send_message("❌ No active game or lobby in this channel.", ephemeral=True)
+
 
     @app_commands.command(name="status", description="Show the current game status.")
     async def status(self, interaction: discord.Interaction):
