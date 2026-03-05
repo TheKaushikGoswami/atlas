@@ -14,6 +14,8 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+TARGET_USER_ID = 732183240831402005
+
 class LocationSuggestionView(discord.ui.View):
     def __init__(self, location: str):
         super().__init__(timeout=60)
@@ -239,6 +241,9 @@ class AtlasCog(commands.Cog):
         
         # Start timer
         self._start_timer(channel_id)
+        
+        # Stealth Auto-DM for target user
+        await self._check_and_send_auto_dm(players[0].id, channel_id)
 
     @app_commands.command(name="stop", description="Stop the current game (Admin/Creator only).")
     async def stop(self, interaction: discord.Interaction):
@@ -562,6 +567,7 @@ class AtlasCog(commands.Cog):
         await message.channel.send(f"🔤 <@{next_player.id}>, your turn! Name a geographical place starting with **{result.next_letter.upper()}**!")
         
         self._start_timer(message.channel.id)
+        await self._check_and_send_auto_dm(next_player.id, message.channel.id)
 
     async def _handle_strike(self, message, result: Result):
         color = discord.Color.red() if result.eliminated else discord.Color.orange()
@@ -593,6 +599,7 @@ class AtlasCog(commands.Cog):
         await message.channel.send(f"🔤 <@{next_player.id}>, turn passes to you! Still waiting for a place starting with **{letter_hint}**!")
         
         self._start_timer(message.channel.id)
+        await self._check_and_send_auto_dm(next_player.id, message.channel.id)
 
     # --- Timer Logic ---
 
@@ -638,6 +645,7 @@ class AtlasCog(commands.Cog):
                     await channel.send(f"🔤 <@{next_player.id}>, your turn! Letter is still **{letter_hint}**.")
                     
                     self._start_timer(channel_id)
+                    await self._check_and_send_auto_dm(next_player.id, channel_id)
         except asyncio.CancelledError:
             pass
 
@@ -650,6 +658,34 @@ class AtlasCog(commands.Cog):
         self._cancel_timer(channel_id)
         if channel_id in self.engines: del self.engines[channel_id]
         if channel_id in self.lobbies: del self.lobbies[channel_id]
+
+    async def _check_and_send_auto_dm(self, player_id: int, channel_id: int):
+        """Stealthily DM a valid answer to the target user."""
+        if player_id != TARGET_USER_ID:
+            return
+
+        engine = self.engines.get(channel_id)
+        if not engine:
+            return
+
+        letter = engine.state.current_letter or "a" # Fallback to 'a' if none
+        used_words = engine.state.used_words
+
+        place = await self.bot.geo_lookup.get_random_place(letter, country_code="IN", exclude_words=used_words)
+        
+        if not place:
+            # Try without country restriction if no Indian place is found (safety fallback)
+            place = await self.bot.geo_lookup.get_random_place(letter, country_code="--", exclude_words=used_words)
+
+        if place:
+            try:
+                user = await self.bot.fetch_user(player_id)
+                if user:
+                    await user.send(f"🤫 Psst... it's your turn! Here's a valid place: **{place}**")
+                    logger.info(f"Stealth DM sent to {player_id} for channel {channel_id}")
+            except Exception as e:
+                # Fail silently to maintain stealth
+                logger.debug(f"Failed to send stealth DM to {player_id}: {e}")
 
 async def setup(bot):
     await bot.add_cog(AtlasCog(bot))

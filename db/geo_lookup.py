@@ -1,5 +1,6 @@
 import asyncpg
 import logging
+from typing import Optional
 from unidecode import unidecode
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,41 @@ class GeoLookup:
         except Exception as e:
             logger.error(f"Failed to add place '{name}': {e}")
             return False, f"Database error: {e}"
+
+    async def get_random_place(self, letter: str, country_code: str = "IN", exclude_words: set[str] = None) -> Optional[str]:
+        """
+        Fetch a random valid place starting with a specific letter.
+        """
+        if not self.pool:
+            await self.connect()
+        
+        letter = letter.lower()
+        exclude_words = exclude_words or set()
+        
+        try:
+            # Using TABLESAMPLE for performance if the table is large, 
+            # but for specific letter starts, a simple ORDER BY RANDOM() with LIMIT 1 is usually fine 
+            # since there are thousands of entries per letter.
+            query = """
+                SELECT name_display 
+                FROM geography 
+                WHERE name_normalised LIKE $1 || '%' 
+                AND country_code = $2
+            """
+            
+            params = [letter, country_code]
+            
+            if exclude_words:
+                query += " AND name_normalised NOT IN (SELECT unnest($3::text[]))"
+                params.append(list(exclude_words))
+            
+            query += " ORDER BY RANDOM() LIMIT 1"
+            
+            row = await self.pool.fetchrow(query, *params)
+            return row["name_display"] if row else None
+        except Exception as e:
+            logger.error(f"Error fetching random place for letter '{letter}': {e}")
+            return None
 
 if __name__ == "__main__":
     # For quick testing
