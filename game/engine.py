@@ -13,6 +13,8 @@ class AnswerStatus(enum.Enum):
     WRONG_LETTER = enum.auto()
     ALREADY_USED = enum.auto()
 
+from .team import Team
+
 class Result(NamedTuple):
     status: AnswerStatus
     message: str
@@ -20,6 +22,7 @@ class Result(NamedTuple):
     next_letter: Optional[str] = None
     eliminated: bool = False
     winner: Optional[Player] = None
+    winner_team: Optional[Team] = None
 
 class TimeoutResult(NamedTuple):
     player: Player
@@ -27,6 +30,7 @@ class TimeoutResult(NamedTuple):
     eliminated: bool
     next_letter: Optional[str]
     winner: Optional[Player]
+    winner_team: Optional[Team] = None
 
 def normalise_word(word: str) -> str:
     return unidecode(word).lower().strip()
@@ -45,10 +49,9 @@ class GameEngine:
             return Result(AnswerStatus.INVALID_WORD, "Game is already over!", self.state.current_player)
 
         player = self.state.current_player
-        if player.is_eliminated:
-            # This should ideally not happen if turn advancement is correct
-            self._advance_turn()
-            player = self.state.current_player
+        
+        # Concurrency check is handled in the Cog via a Lock, 
+        # but we branch logic here for team mode.
 
         word = word.strip()
         
@@ -83,8 +86,8 @@ class GameEngine:
         # Move to next turn
         self._advance_turn()
         
-        winner = self._check_winner()
-        return Result(AnswerStatus.VALID, msg, player, next_letter, winner=winner)
+        winner, winner_team = self._check_winner()
+        return Result(AnswerStatus.VALID, msg, player, next_letter, winner=winner, winner_team=winner_team)
 
     async def handle_timeout(self) -> TimeoutResult:
         """Handle turn timeout."""
@@ -93,38 +96,54 @@ class GameEngine:
         msg = "Time's up! You took too long to answer."
         logger.info(f"Timeout for {player.name}")
         
-        # Timeout is a strike
-        if not player.is_eliminated:
-            player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
-        eliminated = player.is_eliminated
-        
-        if eliminated:
-            logger.info(f"Player {player.name} eliminated on timeout.")
+        eliminated = False
+        strikes = 0
+
+        if self.state.is_team_mode:
+            team = self.state.current_team
+            team.strikes = min(team.strikes + 1, config.MAX_STRIKES)
+            eliminated = team.is_eliminated
+            strikes = team.strikes
+            if eliminated:
+                logger.info(f"Team {team.name} eliminated on timeout.")
+        else:
+            if not player.is_eliminated:
+                player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
+            eliminated = player.is_eliminated
+            strikes = player.strikes
+            if eliminated:
+                logger.info(f"Player {player.name} eliminated on timeout.")
         
         # Advance turn but keep the current letter (same-letter rule)
         self._advance_turn()
-        winner = self._check_winner()
+        winner, winner_team = self._check_winner()
         
         return TimeoutResult(
             player=player,
-            strikes=player.strikes,
+            strikes=strikes,
             eliminated=eliminated,
             next_letter=self.state.current_letter,
-            winner=winner
+            winner=winner,
+            winner_team=winner_team
         )
 
     async def _apply_strike(self, player: Player, status: AnswerStatus, message: str) -> Result:
-        """Apply a strike to the current player."""
+        """Apply a strike to the current player or team."""
         from config import config
         
-        if not player.is_eliminated:
-            player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
-        
-        eliminated = player.is_eliminated
+        eliminated = False
+        if self.state.is_team_mode:
+            team = self.state.current_team
+            team.strikes = min(team.strikes + 1, config.MAX_STRIKES)
+            eliminated = team.is_eliminated
+        else:
+            if not player.is_eliminated:
+                player.strikes = min(player.strikes + 1, config.MAX_STRIKES)
+            eliminated = player.is_eliminated
         
         # Advanced turn
         self._advance_turn()
-        winner = self._check_winner()
+        winner, winner_team = self._check_winner()
         
         # When a strike is applied, the letter DOES NOT change (same-letter rule)
         return Result(
@@ -133,13 +152,14 @@ class GameEngine:
             player=player,
             next_letter=self.state.current_letter,
             eliminated=eliminated,
-            winner=winner
+            winner=winner,
+            winner_team=winner_team
         )
 
-    def leave_game(self, user_id: int) -> tuple[bool, Optional[Player]]:
+    def leave_game(self, user_id: int) -> tuple[bool, Optional[Player], Optional[Team]]:
         """
         Manually remove a player from the game.
-        Returns (success, winner).
+        Returns (success, winner_player, winner_team).
         """
         from config import config
         target_player = None
@@ -149,21 +169,33 @@ class GameEngine:
                 break
         
         if not target_player or target_player.is_eliminated:
-            return False, None
+            return False, None, None
 
         is_current = (self.state.current_player.id == user_id)
         
-        # Eliminate player
-        target_player.strikes = config.MAX_STRIKES
+        if self.state.is_team_mode:
+            # Find and remove from team
+            for team in self.state.teams:
+                if target_player in team.players:
+                    team.players.remove(team.players[team.current_player_index]) if is_current else team.players.remove(target_player)
+                    # If team is empty, eliminate it
+                    if not team.players:
+                        team.strikes = config.MAX_STRIKES
+                    break
+        else:
+            # Eliminate player
+            target_player.strikes = config.MAX_STRIKES
+        
         logger.info(f"Player {target_player.name} left the game.")
 
         # Advance turn if it was their turn
         if is_current and not self.state.is_game_over:
             self._advance_turn()
             
-        return True, self._check_winner()
+        winner, winner_team = self._check_winner()
+        return True, winner, winner_team
 
-    def add_player(self, player: Player) -> tuple[bool, str]:
+    def add_player(self, player: Player, team_name: str | None = None) -> tuple[bool, str]:
         """
         Add a new player to an active game mid-round.
         Returns (success, message).
@@ -175,26 +207,60 @@ class GameEngine:
             if p.id == player.id:
                 return False, f"**{player.name}** is already in this game."
 
+        if self.state.is_team_mode:
+            if not team_name:
+                return False, "This is a team game. You must specify which team to join."
+            
+            norm_name = team_name.strip().split()[0].lower()
+            target_team = next((t for t in self.state.teams if t.name == norm_name), None)
+            if not target_team:
+                return False, f"Team **{team_name}** does not exist."
+            
+            target_team.players.append(player)
+            self.state.players.append(player)
+            logger.info(f"Player {player.name} added to Team {norm_name} mid-round.")
+            return True, f"**{player.name}** has been added to **Team {norm_name.capitalize()}**!"
+
         self.state.players.append(player)
         logger.info(f"Player {player.name} added to the game mid-round.")
         return True, f"**{player.name}** has been added to the game!"
 
     def _advance_turn(self):
-        """Move current_index to the next active player."""
-        if not self.state.active_players:
-            return
+        """Move turn to the next active player/team."""
+        if self.state.is_team_mode:
+            # 1. Advance player inside current team
+            self.state.current_team.advance_player()
+            
+            # 2. Switch to next active team
+            if not self.state.active_teams:
+                return
 
-        # Start from the next index and loop around until an active player is found
-        while True:
-            self.state.current_index = (self.state.current_index + 1) % len(self.state.players)
-            if not self.state.players[self.state.current_index].is_eliminated:
-                break
-        
-        logger.debug(f"Turn advanced to {self.state.current_player.name}")
+            while True:
+                self.state.current_team_index = (self.state.current_team_index + 1) % len(self.state.teams)
+                if not self.state.teams[self.state.current_team_index].is_eliminated:
+                    break
+            logger.debug(f"Turn switched to Team {self.state.current_team.name}")
+        else:
+            if not self.state.active_players:
+                return
 
-    def _check_winner(self) -> Optional[Player]:
-        """Return the winner if only 1 active player remains."""
-        active = self.state.active_players
-        if len(active) == 1:
-            return active[0]
-        return None
+            # Start from the next index and loop around until an active player is found
+            while True:
+                self.state.current_index = (self.state.current_index + 1) % len(self.state.players)
+                if not self.state.players[self.state.current_index].is_eliminated:
+                    break
+            
+            logger.debug(f"Turn advanced to {self.state.current_player.name}")
+
+    def _check_winner(self) -> tuple[Optional[Player], Optional[Team]]:
+        """Return the winner (Player, Team)."""
+        if self.state.is_team_mode:
+            active = self.state.active_teams
+            if len(active) == 1:
+                # Return current player of the winning team for record_win compatibility
+                return active[0].current_player, active[0]
+        else:
+            active = self.state.active_players
+            if len(active) == 1:
+                return active[0], None
+        return None, None

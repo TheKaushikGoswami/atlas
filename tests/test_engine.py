@@ -5,6 +5,7 @@ from game.player import Player
 from game.state import GameState
 from game.lobby import Lobby
 from game.engine import GameEngine, AnswerStatus
+from game.team import Team
 
 # --- Lobby Tests ---
 
@@ -13,20 +14,44 @@ def test_lobby_join():
     success, msg = lobby.join(1, "Player1")
     assert success is True
     assert len(lobby.players) == 1
+    assert lobby.is_team_mode is False
     
     success, msg = lobby.join(1, "Player1")
     assert success is False # Duplicate join
 
+def test_lobby_team_join():
+    lobby = Lobby(123, 456)
+    success, msg = lobby.join(1, "Player1", team_name="Red")
+    assert success is True
+    assert lobby.is_team_mode is True
+    assert "red" in lobby.teams
+    assert 1 in lobby.teams["red"]
+    
+    # Mode consistency: cannot join FFA if lobby is team mode
+    success, msg = lobby.join(2, "Player2")
+    assert success is False
+    assert "team-based lobby" in msg
+
 def test_lobby_lock():
     lobby = Lobby(123, 456)
     lobby.join(1, "Player1")
-    players, msg = lobby.lock()
+    players, team_data, msg = lobby.lock()
     assert len(players) == 0 # Need at least 2
     
     lobby.join(2, "Player2")
-    players, msg = lobby.lock()
+    players, team_data, msg = lobby.lock()
     assert len(players) == 2
     assert lobby.locked is True
+
+def test_lobby_team_lock():
+    lobby = Lobby(123, 456)
+    lobby.join(1, "P1", team_name="Red")
+    lobby.join(2, "P2", team_name="Blue")
+    
+    players, team_data, msg = lobby.lock()
+    assert len(players) == 2
+    assert team_data["red"][0].id == 1
+    assert team_data["blue"][0].id == 2
 
 # --- Engine Tests ---
 
@@ -118,3 +143,68 @@ def test_start_requires_lobby_membership():
     assert 999 not in lobby.players
     # User 1 did join
     assert 1 in lobby.players
+
+# --- Team Engine Tests ---
+
+@pytest.fixture
+def team_game_engine(mock_geo_lookup):
+    players = [Player(1, "R1"), Player(2, "B1"), Player(3, "R2")]
+    teams = [
+        Team(name="red", players=[players[0], players[2]]),
+        Team(name="blue", players=[players[1]])
+    ]
+    state = GameState(players=players, teams=teams, started=True)
+    return GameEngine(state, mock_geo_lookup)
+
+@pytest.mark.asyncio
+async def test_team_engine_turn_advancement(team_game_engine):
+    # Current: Red (R1)
+    assert team_game_engine.state.current_team.name == "red"
+    assert team_game_engine.state.current_player.id == 1
+    
+    await team_game_engine.submit_answer("Mumbai")
+    
+    # Next: Blue (B1)
+    assert team_game_engine.state.current_team.name == "blue"
+    assert team_game_engine.state.current_player.id == 2
+    
+    await team_game_engine.submit_answer("Indore")
+    
+    # Next: Red (R2) - internal rotation
+    assert team_game_engine.state.current_team.name == "red"
+    assert team_game_engine.state.current_player.id == 3
+
+@pytest.mark.asyncio
+async def test_team_engine_strike(team_game_engine):
+    # Red (R1) fails
+    team_game_engine.geo_lookup.is_valid.return_value = False
+    result = await team_game_engine.submit_answer("Fake")
+    
+    assert result.status == AnswerStatus.INVALID_WORD
+    assert team_game_engine.state.teams[0].strikes == 1
+    # Turn advanced to Blue
+    assert team_game_engine.state.current_team.name == "blue"
+
+@pytest.mark.asyncio
+async def test_team_engine_elimination(team_game_engine):
+    from config import config
+    team_game_engine.state.teams[1].strikes = config.MAX_STRIKES - 1 # Blue almost out
+    team_game_engine.state.current_team_index = 1 # Blue's turn
+    
+    team_game_engine.geo_lookup.is_valid.return_value = False
+    result = await team_game_engine.submit_answer("Fake")
+    
+    assert result.eliminated is True
+    assert result.winner_team.name == "red"
+    assert team_game_engine.state.is_game_over is True
+
+@pytest.mark.asyncio
+async def test_team_engine_add_player(team_game_engine):
+    new_p = Player(4, "B2")
+    # Must specify team
+    success, msg = team_game_engine.add_player(new_p)
+    assert success is False
+    
+    success, msg = team_game_engine.add_player(new_p, team_name="blue")
+    assert success is True
+    assert new_p in team_game_engine.state.teams[1].players

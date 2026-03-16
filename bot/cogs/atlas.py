@@ -10,6 +10,7 @@ from game.lobby import Lobby
 from game.state import GameState
 from game.engine import GameEngine, AnswerStatus, Result
 from game.player import Player
+from game.team import Team
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,8 @@ class AtlasCog(commands.Cog):
         self.engines: Dict[int, GameEngine] = {}
         # channel_id -> asyncio.Task (Timer)
         self.timers: Dict[int, asyncio.Task] = {}
+        # channel_id -> asyncio.Lock (for first-answer-only logic)
+        self.answer_locks: Dict[int, asyncio.Lock] = {}
 
     @commands.command(name="sync")
     async def legacy_sync(self, ctx):
@@ -140,9 +143,9 @@ class AtlasCog(commands.Cog):
         embed.add_field(
             name="🎮 Player Commands",
             value=(
-                "`/join` - Join the active lobby\n"
+                "`/join [team]` - Join the lobby (Team is optional)\n"
                 "`/leave` - Leave the game or lobby\n"
-                "`/add @user` - Add a player mid-game\n"
+                "`/add @user [team]` - Add a player mid-game\n"
                 "`/status` - Check game progress\n"
                 "`/players` - See who's still in the game\n"
                 "`/leaderboard` - See top players\n"
@@ -152,13 +155,24 @@ class AtlasCog(commands.Cog):
         )
         
         embed.add_field(
+            name="⚔️ Team Mode",
+            value=(
+                "Specify a team name when joining: `/join team:Red`\n"
+                "• Exactly 2 teams required to start.\n"
+                "• Strikes are per-team. One wrong answer = strike for all.\n"
+                "• First team member to answer wins the turn!"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
             name="🛠️ Management Commands",
             value=(
-                "`/start` - Start the game (Lobby only)\n"
+                "`/start` - Start the game (Lobby members only)\n"
                 "`/stop` - Stop the current game (Admin/Creator)\n"
                 "`/kick @user` - Kick a player (Admin)\n"
                 "`/addplace <name>` - Add a place to the database (Admin)\n"
-                "`/sync` - Refresh slash commands (Admin)"
+                "`/sync` - Refresh slash commands"
             ),
             inline=False
         )
@@ -181,7 +195,8 @@ class AtlasCog(commands.Cog):
     # --- Slash Commands ---
 
     @app_commands.command(name="join", description="Join the Atlas game lobby in this channel.")
-    async def join(self, interaction: discord.Interaction):
+    @app_commands.describe(team="Optional: Specify a team to join for team mode (e.g. Red, Blue).")
+    async def join(self, interaction: discord.Interaction, team: Optional[str] = None):
         channel_id = interaction.channel_id
         
         if channel_id in self.engines:
@@ -192,7 +207,7 @@ class AtlasCog(commands.Cog):
             self.lobbies[channel_id] = Lobby(channel_id, interaction.user.id)
             
         lobby = self.lobbies[channel_id]
-        success, message = lobby.join(interaction.user.id, interaction.user.display_name)
+        success, message = lobby.join(interaction.user.id, interaction.user.display_name, team_name=team)
         await interaction.response.send_message(message)
 
     @app_commands.command(name="start", description="Start the Atlas game with the current lobby.")
@@ -214,14 +229,18 @@ class AtlasCog(commands.Cog):
             await interaction.response.send_message("❌ You must join the lobby first before starting the game.", ephemeral=True)
             return
         
-        players, message = lobby.lock()
+        players, team_data, message = lobby.lock()
         
         if not players:
             await interaction.response.send_message(f"❌ {message}", ephemeral=True)
             return
             
         # Initialise game
-        state = GameState(players=players, started=True)
+        teams = None
+        if team_data:
+            teams = [Team(name=tname, players=pids) for tname, pids in team_data.items()]
+
+        state = GameState(players=players, teams=teams, started=True)
         engine = GameEngine(state, self.bot.geo_lookup)
         self.engines[channel_id] = engine
         
@@ -229,21 +248,33 @@ class AtlasCog(commands.Cog):
         del self.lobbies[channel_id]
         
         # Initial embed
-        embed = discord.Embed(
-            title="🌍 Atlas Round-Robin Started!",
-            description=f"Players: {', '.join([p.name for p in players])}\n\n**Turn Order:** " + " ➔ ".join([p.name for p in players]),
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="Current Player", value=f"{players[0].name}", inline=False)
-        embed.add_field(name="Rule", value="First player can start with **any** geographical place!", inline=False)
+        if teams:
+            team_str = "\n".join([f"**Team {t.name.capitalize()}:** {', '.join([p.name for p in t.players])}" for t in teams])
+            embed = discord.Embed(
+                title="⚔️ Team Atlas Started!",
+                description=f"{team_str}\n\n**Turn Order:** {teams[0].name.capitalize()} ➔ {teams[1].name.capitalize()}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Current Team", value=f"{teams[0].name.capitalize()}", inline=False)
+            embed.add_field(name="Current Player", value=f"{teams[0].current_player.name}", inline=True)
+        else:
+            embed = discord.Embed(
+                title="🌍 Atlas Round-Robin Started!",
+                description=f"Players: {', '.join([p.name for p in players])}\n\n**Turn Order:** " + " ➔ ".join([p.name for p in players]),
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Current Player", value=f"{players[0].name}", inline=False)
         
-        await interaction.response.send_message(content=f"🔔 <@{players[0].id}>, you start!", embed=embed)
+        embed.add_field(name="Rule", value="First team/player can start with **any** geographical place!", inline=False)
+        
+        start_user = teams[0].current_player if teams else players[0]
+        await interaction.response.send_message(content=f"🔔 <@{start_user.id}>, you start!", embed=embed)
         
         # Start timer
         self._start_timer(channel_id)
         
         # Stealth Auto-DM for target user
-        await self._check_and_send_auto_dm(players[0].id, channel_id)
+        await self._check_and_send_auto_dm(start_user.id, channel_id)
 
     @app_commands.command(name="stop", description="Stop the current game (Admin/Creator only).")
     async def stop(self, interaction: discord.Interaction):
@@ -289,15 +320,25 @@ class AtlasCog(commands.Cog):
         if channel_id in self.engines:
             engine = self.engines[channel_id]
             player_name = interaction.user.display_name
-            success, winner = engine.leave_game(user_id)
+            success, winner, winner_team = engine.leave_game(user_id)
             
             if not success:
                 await interaction.response.send_message("❌ You are not an active player in this game.", ephemeral=True)
                 return
             
-            await interaction.response.send_message(f"🚪 **{player_name}** has left the game and been eliminated.")
+            await interaction.response.send_message(f"🚪 **{player_name}** has left the game.")
             
-            if winner:
+            if winner_team:
+                embed = discord.Embed(
+                    title="🏆 TEAM VICTORY!",
+                    description=f"Team **{winner_team.name.capitalize()}** has won the game! {winner_team.current_player.name} was the last one standing for them.",
+                    color=discord.Color.gold()
+                )
+                await interaction.followup.send(embed=embed)
+                for p in winner_team.players:
+                    await self._record_win(interaction.guild_id, p)
+                self._cleanup_game(channel_id)
+            elif winner:
                 embed = discord.Embed(
                     title="🏆 GAME OVER!",
                     description=f"Everyone else left! Congratulations **{winner.name}**, you won by default!",
@@ -310,15 +351,20 @@ class AtlasCog(commands.Cog):
                 # If it was their turn, notify the next player
                 next_player = engine.state.current_player
                 letter_hint = engine.state.current_letter.upper() if engine.state.current_letter else "ANY"
-                await interaction.followup.send(f"🔤 <@{next_player.id}>, turn passes to you! Letter is **{letter_hint}**.")
+                
+                msg = f"🔤 <@{next_player.id}>, turn passes to you!"
+                if engine.state.is_team_mode:
+                    msg = f"👥 Next up: **Team {engine.state.current_team.name.capitalize()}**! <@{next_player.id}>, your turn!"
+                
+                await interaction.followup.send(f"{msg} Letter is **{letter_hint}**.")
                 self._start_timer(channel_id)
             return
 
         await interaction.response.send_message("❌ No active game or lobby in this channel.", ephemeral=True)
 
     @app_commands.command(name="add", description="Add a player to an active game.")
-    @app_commands.describe(user="The user to add to the game.")
-    async def add(self, interaction: discord.Interaction, user: discord.Member):
+    @app_commands.describe(user="The user to add to the game.", team="Optional: Team to join (required if this is a team game).")
+    async def add(self, interaction: discord.Interaction, user: discord.Member, team: Optional[str] = None):
         channel_id = interaction.channel_id
 
         if not interaction.user.guild_permissions.manage_messages:
@@ -334,7 +380,7 @@ class AtlasCog(commands.Cog):
             return
 
         engine = self.engines[channel_id]
-        success, message = engine.add_player(Player(id=user.id, name=user.display_name))
+        success, message = engine.add_player(Player(id=user.id, name=user.display_name), team_name=team)
 
         if not success:
             await interaction.response.send_message(f"❌ {message}", ephemeral=True)
@@ -345,6 +391,9 @@ class AtlasCog(commands.Cog):
             description=f"{user.mention} has been added to the game by {interaction.user.mention}.",
             color=discord.Color.green()
         )
+        if engine.state.is_team_mode:
+            embed.description = f"{user.mention} has been added to **Team {team.capitalize()}** by {interaction.user.mention}."
+
         embed.set_footer(text=f"Total active players: {len(engine.state.active_players)}")
         await interaction.response.send_message(embed=embed)
 
@@ -371,7 +420,7 @@ class AtlasCog(commands.Cog):
         # 2. Handle Active Game
         if channel_id in self.engines:
             engine = self.engines[channel_id]
-            success, winner = engine.leave_game(user_id)
+            success, winner, winner_team = engine.leave_game(user_id)
 
             if not success:
                 await interaction.response.send_message(f"❌ {player_name} is not an active player in this game.", ephemeral=True)
@@ -379,7 +428,17 @@ class AtlasCog(commands.Cog):
 
             await interaction.response.send_message(f"👢 **{player_name}** has been kicked from the game by {interaction.user.mention}.")
 
-            if winner:
+            if winner_team:
+                embed = discord.Embed(
+                    title="🏆 TEAM VICTORY!",
+                    description=f"Only one team remains! Team **{winner_team.name.capitalize()}** has won!",
+                    color=discord.Color.gold()
+                )
+                await interaction.followup.send(embed=embed)
+                for p in winner_team.players:
+                    await self._record_win(interaction.guild_id, p)
+                self._cleanup_game(channel_id)
+            elif winner:
                 embed = discord.Embed(
                     title="🏆 GAME OVER!",
                     description=f"Only one player remains! Congratulations **{winner.name}**, you won!",
@@ -392,7 +451,12 @@ class AtlasCog(commands.Cog):
                 # If it was their turn, notify the next player
                 next_player = engine.state.current_player
                 letter_hint = engine.state.current_letter.upper() if engine.state.current_letter else "ANY"
-                await interaction.followup.send(f"🔤 <@{next_player.id}>, turn passes to you! Letter is **{letter_hint}**.")
+                
+                msg = f"🔤 <@{next_player.id}>, turn passes to you!"
+                if engine.state.is_team_mode:
+                    msg = f"👥 Next up: **Team {engine.state.current_team.name.capitalize()}**! <@{next_player.id}>, your turn!"
+                    
+                await interaction.followup.send(f"{msg} Letter is **{letter_hint}**.")
                 self._start_timer(channel_id)
             return
 
@@ -410,11 +474,19 @@ class AtlasCog(commands.Cog):
         state = engine.state
         
         embed = discord.Embed(title="🌍 Atlas Game Status", color=discord.Color.blue())
-        embed.add_field(name="Current Turn", value=f"{state.current_player.name}", inline=True)
-        embed.add_field(name="Required Letter", value=f"**{state.current_letter.upper() if state.current_letter else 'ANY'}**", inline=True)
         
-        scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (config.MAX_STRIKES - p.strikes)}" for p in state.players])
-        embed.add_field(name="Scoreboard (Strikes)", value=scoreboard, inline=False)
+        if state.is_team_mode:
+            embed.add_field(name="Current Team", value=f"**Team {state.current_team.name.capitalize()}**", inline=True)
+            embed.add_field(name="Current Player", value=f"{state.current_player.name}", inline=True)
+            
+            scoreboard = "\n".join([f"**Team {t.name.capitalize()}**: {'❌' * t.strikes}{'✅' * (config.MAX_STRIKES - t.strikes)}" for t in state.teams])
+            embed.add_field(name="Scoreboard (Team Strikes)", value=scoreboard, inline=False)
+        else:
+            embed.add_field(name="Current Turn", value=f"{state.current_player.name}", inline=True)
+            scoreboard = "\n".join([f"{p.name}: {'❌' * p.strikes}{'✅' * (config.MAX_STRIKES - p.strikes)}" for p in state.players])
+            embed.add_field(name="Scoreboard (Strikes)", value=scoreboard, inline=False)
+
+        embed.add_field(name="Required Letter", value=f"**{state.current_letter.upper() if state.current_letter else 'ANY'}**", inline=True)
         embed.add_field(name="Words Used", value=str(len(state.used_words)), inline=True)
         
         await interaction.response.send_message(embed=embed)
@@ -445,19 +517,34 @@ class AtlasCog(commands.Cog):
                 color=discord.Color.blue()
             )
             
-            player_list = []
-            for p in state.players:
-                status_emoji = "✅" if not p.is_eliminated else "❌"
-                # Bold the name if they are active, strike through if eliminated
-                name_str = f"**{p.name}**" if not p.is_eliminated else f"~~{p.name}~~"
+            if state.is_team_mode:
+                for team in state.teams:
+                    player_list = []
+                    for p in team.players:
+                        status_emoji = "✅" if not team.is_eliminated else "❌"
+                        name_str = f"**{p.name}**" if not team.is_eliminated else f"~~{p.name}~~"
+                        turn_marker = " ⬅️ **TURN**" if (p.id == state.current_player.id and team.name == state.current_team.name) else ""
+                        player_list.append(f"{status_emoji} {name_str}{turn_marker}")
+                    
+                    status = "Active" if not team.is_eliminated else "ELIMINATED"
+                    embed.add_field(
+                        name=f"Team {team.name.capitalize()} ({status} - {team.strikes}/{config.MAX_STRIKES} strikes)", 
+                        value="\n".join(player_list) if player_list else "No players left.", 
+                        inline=False
+                    )
+            else:
+                player_list = []
+                for p in state.players:
+                    status_emoji = "✅" if not p.is_eliminated else "❌"
+                    name_str = f"**{p.name}**" if not p.is_eliminated else f"~~{p.name}~~"
+                    turn_marker = " ⬅️ **TURN**" if p.id == state.current_player.id else ""
+                    player_list.append(f"{status_emoji} {name_str} — {p.strikes}/{config.MAX_STRIKES} strikes{turn_marker}")
                 
-                turn_marker = " ⬅️ **TURN**" if p.id == state.current_player.id else ""
-                
-                player_line = f"{status_emoji} {name_str} — {p.strikes}/{config.MAX_STRIKES} strikes{turn_marker}"
-                player_list.append(player_line)
+                embed.add_field(name="Player List", value="\n".join(player_list), inline=False)
             
-            embed.add_field(name="Player List", value="\n".join(player_list), inline=False)
-            embed.set_footer(text=f"Active: {len(state.active_players)} | Eliminated: {len(state.players) - len(state.active_players)}")
+            active_count = len(state.active_teams) if state.is_team_mode else len(state.active_players)
+            total_count = len(state.teams) if state.is_team_mode else len(state.players)
+            embed.set_footer(text=f"Active: {active_count} | Total: {total_count}")
             
             await interaction.response.send_message(embed=embed)
             return
@@ -526,31 +613,58 @@ class AtlasCog(commands.Cog):
         engine = self.engines[channel_id]
         state = engine.state
         
-        # Only listen to current player
-        if message.author.id != state.current_player.id:
-            return
-            
-        # Stop existing timer
-        self._cancel_timer(channel_id)
-        
-        # Process answer
-        result: Result = await engine.submit_answer(message.content)
-        
-        if result.status == AnswerStatus.VALID:
-            await self._handle_valid(message, result)
+        # Team mode check: anyone on the current team can answer
+        if state.is_team_mode:
+            current_team_member_ids = [p.id for p in state.current_team.players]
+            if message.author.id not in current_team_member_ids:
+                return
         else:
-            await self._handle_strike(message, result)
+            # Only listen to current player in FFA
+            if message.author.id != state.current_player.id:
+                return
+            
+        # Concurrency Lock (First-answer-only)
+        if channel_id not in self.answer_locks:
+            self.answer_locks[channel_id] = asyncio.Lock()
+        
+        # Check if lock is already held (means someone is already being processed)
+        if self.answer_locks[channel_id].locked():
+            return # Silently ignore concurrent answers from same team
+            
+        async with self.answer_locks[channel_id]:
+            # Stop existing timer
+            self._cancel_timer(channel_id)
+            
+            # Process answer
+            result: Result = await engine.submit_answer(message.content)
+            
+            if result.status == AnswerStatus.VALID:
+                await self._handle_valid(message, result)
+            else:
+                await self._handle_strike(message, result)
 
     # --- Helper Handlers ---
 
     async def _handle_valid(self, message, result: Result):
+        engine = self.engines[message.channel.id]
+        state = engine.state
+
         embed = discord.Embed(
             title="✅ Valid Answer!",
             description=f"**{message.author.display_name}** said **{message.content.strip()}**.",
             color=discord.Color.green()
         )
         
-        if result.winner:
+        if result.winner_team:
+            embed.title = "🏆 TEAM VICTORY!"
+            embed.description += f"\n\nCongratulations **Team {result.winner_team.name.capitalize()}**, you won the game!"
+            embed.color = discord.Color.gold()
+            await message.channel.send(embed=embed)
+            for p in result.winner_team.players:
+                await self._record_win(message.guild.id, p)
+            self._cleanup_game(message.channel.id)
+            return
+        elif result.winner:
             embed.title = "🏆 WINNER!"
             embed.description += f"\n\nCongratulations **{result.winner.name}**, you won the game!"
             embed.color = discord.Color.gold()
@@ -559,8 +673,12 @@ class AtlasCog(commands.Cog):
             self._cleanup_game(message.channel.id)
             return
 
-        next_player = self.engines[message.channel.id].state.current_player
-        embed.add_field(name="Next Turn", value=f"**{next_player.name}**", inline=False)
+        next_player = state.current_player
+        if state.is_team_mode:
+            embed.add_field(name="Next Turn", value=f"**Team {state.current_team.name.capitalize()}** ({next_player.name})", inline=False)
+        else:
+            embed.add_field(name="Next Turn", value=f"**{next_player.name}**", inline=False)
+            
         embed.set_footer(text=f"Letter: {result.next_letter.upper()}")
         
         await message.channel.send(embed=embed)
@@ -570,14 +688,35 @@ class AtlasCog(commands.Cog):
         await self._check_and_send_auto_dm(next_player.id, message.channel.id)
 
     async def _handle_strike(self, message, result: Result):
+        engine = self.engines[message.channel.id]
+        state = engine.state
         color = discord.Color.red() if result.eliminated else discord.Color.orange()
         title = "❌ ELIMINATED!" if result.eliminated else "⚠️ STRIKE!"
         
         embed = discord.Embed(title=title, description=result.message, color=color)
-        embed.add_field(name="Player", value=message.author.display_name, inline=True)
-        embed.add_field(name="Strikes", value=f"{result.player.strikes}/{config.MAX_STRIKES}", inline=True)
         
-        if result.winner:
+        if state.is_team_mode:
+            # We use state.current_team because turn was already advanced in engine._apply_strike
+            # Actually engine._apply_strike advances turn, so state.current_team is the NEXT team.
+            # We want to show the team that JUST GOT the strike.
+            # Let's find the team that has the current player (result.player)
+            team = next((t for t in state.teams if result.player in t.players), None)
+            embed.add_field(name="Team", value=team.name.capitalize() if team else "Unknown", inline=True)
+            embed.add_field(name="Team Strikes", value=f"{team.strikes}/{config.MAX_STRIKES}" if team else "N/A", inline=True)
+        else:
+            embed.add_field(name="Player", value=message.author.display_name, inline=True)
+            embed.add_field(name="Strikes", value=f"{result.player.strikes}/{config.MAX_STRIKES}", inline=True)
+        
+        if result.winner_team:
+            embed.title = "🏆 TEAM VICTORY!"
+            embed.description += f"\n\nCongratulations **Team {result.winner_team.name.capitalize()}**, you won the game!"
+            embed.color = discord.Color.gold()
+            await message.channel.send(embed=embed)
+            for p in result.winner_team.players:
+                await self._record_win(message.guild.id, p)
+            self._cleanup_game(message.channel.id)
+            return
+        elif result.winner:
             embed.title = "🏆 GAME OVER!"
             embed.description += f"\n\nCongratulations **{result.winner.name}**, you won by default!"
             embed.color = discord.Color.gold()
@@ -586,9 +725,14 @@ class AtlasCog(commands.Cog):
             self._cleanup_game(message.channel.id)
             return
 
-        next_player = self.engines[message.channel.id].state.current_player
+        next_player = state.current_player
         letter_hint = result.next_letter.upper() if result.next_letter else "ANY"
-        embed.set_footer(text=f"Same-letter rule applies. Next up: {next_player.name} | Letter: {letter_hint}")
+        
+        footer_text = f"Same-letter rule applies. Next up: {next_player.name}"
+        if state.is_team_mode:
+            footer_text = f"Same-letter rule applies. Next: Team {state.current_team.name.capitalize()} ({next_player.name})"
+        
+        embed.set_footer(text=f"{footer_text} | Letter: {letter_hint}")
         
         view = None
         if result.status == AnswerStatus.INVALID_WORD:
@@ -629,9 +773,24 @@ class AtlasCog(commands.Cog):
                     if res.eliminated: title = "⏰ ELIMINATED ON TIMEOUT!"
                     
                     embed = discord.Embed(title=title, description=f"**{res.player.name}** failed to answer in time.", color=color)
-                    embed.add_field(name="Strikes", value=f"{res.strikes}/{config.MAX_STRIKES}")
                     
-                    if res.winner:
+                    if engine.state.is_team_mode:
+                        # Team strike was already applied, but handle_timeout returns current player
+                        # We need to find their team to show strikes correctly
+                        team = next((t for t in engine.state.teams if res.player in t.players), None)
+                        embed.add_field(name="Team Strikes", value=f"{team.strikes}/{config.MAX_STRIKES}" if team else "N/A")
+                    else:
+                        embed.add_field(name="Strikes", value=f"{res.strikes}/{config.MAX_STRIKES}")
+                    
+                    if res.winner_team:
+                        embed.title = "🏆 TEAM VICTORY!"
+                        embed.description += f"\n\nCongratulations **Team {res.winner_team.name.capitalize()}**, you won by default!"
+                        await channel.send(embed=embed)
+                        for p in res.winner_team.players:
+                            await self._record_win(channel.guild.id, p)
+                        self._cleanup_game(channel_id)
+                        return
+                    elif res.winner:
                         embed.title = "🏆 WINNER!"
                         embed.description += f"\n\nCongratulations **{res.winner.name}**, you won by default!"
                         await channel.send(embed=embed)
@@ -642,7 +801,12 @@ class AtlasCog(commands.Cog):
                     next_player = engine.state.current_player
                     letter_hint = res.next_letter.upper() if res.next_letter else "ANY"
                     await channel.send(embed=embed)
-                    await channel.send(f"🔤 <@{next_player.id}>, your turn! Letter is still **{letter_hint}**.")
+                    
+                    msg = f"🔤 <@{next_player.id}>, your turn!"
+                    if engine.state.is_team_mode:
+                        msg = f"👥 Team **{engine.state.current_team.name.capitalize()}**'s turn! <@{next_player.id}>, you're up!"
+                    
+                    await channel.send(f"{msg} Letter is still **{letter_hint}**.")
                     
                     self._start_timer(channel_id)
                     await self._check_and_send_auto_dm(next_player.id, channel_id)
@@ -658,6 +822,7 @@ class AtlasCog(commands.Cog):
         self._cancel_timer(channel_id)
         if channel_id in self.engines: del self.engines[channel_id]
         if channel_id in self.lobbies: del self.lobbies[channel_id]
+        if channel_id in self.answer_locks: del self.answer_locks[channel_id]
 
     async def _check_and_send_auto_dm(self, player_id: int, channel_id: int):
         """Stealthily DM a valid answer to the target user."""
