@@ -12,7 +12,6 @@ class AtlasBot(commands.Bot):
         """Initialise cogs and sync slash commands."""
         logger.info("Setting up cogs...")
         await self.load_extension("bot.cogs.atlas")
-        await self.load_extension("bot.cogs.tradle")
         
         # Syncing globally for now. Can be guild-specific for speed in dev.
         # await self.tree.sync()
