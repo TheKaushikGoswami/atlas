@@ -79,7 +79,8 @@ class TradleSessionView(discord.ui.View):
         # Build guess history text
         history = ""
         for g in self.session.guesses:
-            history += f"{self.engine.get_country_name(g.country_iso)} | {int(g.distance_km):,} km | {g.direction} | {g.proximity_pct}%\n"
+            dist_str = f"{int(g.distance_km):,} km" if (g.distance_km > 0 or g.is_correct) else "N/A"
+            history += f"{self.engine.get_country_name(g.country_iso)} | {dist_str} | {g.direction} | {g.proximity_pct}%\n"
         
         embed.description = f"```\n{history}\n```"
         

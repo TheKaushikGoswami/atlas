@@ -77,12 +77,12 @@ class TradleEngine:
                 
         return None
 
-    def calculate_distance(self, iso_a: str, iso_b: str) -> float:
-        """Calculate Haversine distance in km."""
+    def calculate_distance(self, iso_a: str, iso_b: str) -> Optional[float]:
+        """Calculate Haversine distance in km. Returns None if coords missing."""
         coord_a = self.coords.get(iso_a)
         coord_b = self.coords.get(iso_b)
         if not coord_a or not coord_b:
-            return 0.0
+            return None
 
         lat1, lon1 = math.radians(coord_a["lat"]), math.radians(coord_a["lng"])
         lat2, lon2 = math.radians(coord_b["lat"]), math.radians(coord_b["lng"])
@@ -97,13 +97,13 @@ class TradleEngine:
 
     def calculate_bearing(self, iso_a: str, iso_b: str) -> str:
         """Calculate bearing and return arrow emoji."""
+        if iso_a == iso_b:
+            return "🎉"
+
         coord_a = self.coords.get(iso_a)
         coord_b = self.coords.get(iso_b)
         if not coord_a or not coord_b:
             return "❓"
-
-        if iso_a == iso_b:
-            return "🎉"
 
         lat1, lon1 = math.radians(coord_a["lat"]), math.radians(coord_a["lng"])
         lat2, lon2 = math.radians(coord_b["lat"]), math.radians(coord_b["lng"])
@@ -128,8 +128,10 @@ class TradleEngine:
         if 292.5 <= bearing < 337.5: return arrows["NW"]
         return "➡️"
 
-    def proximity_percentage(self, distance_km: float) -> int:
-        """Calculate proximity percentage (0-100%). Max distance on Earth is ~20,000km."""
+    def proximity_percentage(self, distance_km: Optional[float]) -> int:
+        """Calculate proximity percentage (0-100%). Returns 0 if distance unknown."""
+        if distance_km is None:
+            return 0
         max_dist = 20000.0
         pct = max(0, 100 - (distance_km / max_dist) * 100)
         return int(round(pct))
@@ -156,7 +158,7 @@ class TradleEngine:
         entry = GuessEntry(
             country_iso=guess_iso,
             country_name=self.get_country_name(guess_iso),
-            distance_km=dist,
+            distance_km=dist if dist is not None else 0.0,
             direction=bearing,
             proximity_pct=prox,
             is_correct=is_correct
