@@ -1,0 +1,422 @@
+{
+    "Russia": [
+        {
+            "product": "Wheat",
+            "value": 64494899904.0
+        },
+        {
+            "product": "Non-fillet Frozen Fish",
+            "value": 20312751628.0
+        },
+        {
+            "product": "Crustaceans",
+            "value": 15258612400.0
+        },
+        {
+            "product": "Barley",
+            "value": 6431861087.0
+        },
+        {
+            "product": "Dried Legumes",
+            "value": 5311880227.0
+        },
+        {
+            "product": "Corn",
+            "value": 5238840860.0
+        },
+        {
+            "product": "Fish Fillets",
+            "value": 5110432093.0
+        },
+        {
+            "product": "Poultry Meat",
+            "value": 3788655130.0
+        },
+        {
+            "product": "Pig Meat",
+            "value": 1315976447.0
+        },
+        {
+            "product": "Molluscs",
+            "value": 848084569.0
+        }
+    ],
+    "Burma": [
+        {
+            "product": "Dried Legumes",
+            "value": 9142569266.0
+        },
+        {
+            "product": "Rice",
+            "value": 6747456228.0
+        },
+        {
+            "product": "Corn",
+            "value": 3851126929.0
+        },
+        {
+            "product": "Non-fillet Frozen Fish",
+            "value": 1585278411.0
+        },
+        {
+            "product": "Crustaceans",
+            "value": 1548310309.0
+        },
+        {
+            "product": "Bananas",
+            "value": 1317898045.0
+        },
+        {
+            "product": "Non-fillet Fresh Fish",
+            "value": 1202698356.0
+        },
+        {
+            "product": "Bovine",
+            "value": 962346078.0
+        },
+        {
+            "product": "Ground Nuts",
+            "value": 626916708.0
+        },
+        {
+            "product": "Other Nuts",
+            "value": 552286233.0
+        }
+    ],
+    "Colombia": [
+        {
+            "product": "Coffee",
+            "value": 21695099442.0
+        },
+        {
+            "product": "Cut Flowers",
+            "value": 9866379560.0
+        },
+        {
+            "product": "Bananas",
+            "value": 8650765079.0
+        },
+        {
+            "product": "Tropical Fruits",
+            "value": 1478884345.0
+        },
+        {
+            "product": "Bovine",
+            "value": 1253156340.0
+        },
+        {
+            "product": "Other Fruits",
+            "value": 737514509.0
+        },
+        {
+            "product": "Frozen Bovine Meat",
+            "value": 574801131.0
+        },
+        {
+            "product": "Citrus",
+            "value": 530215875.0
+        },
+        {
+            "product": "Fish Fillets",
+            "value": 526290144.0
+        },
+        {
+            "product": "Bovine Meat",
+            "value": 302974448.0
+        }
+    ],
+    "Angola": [
+        {
+            "product": "Non-fillet Frozen Fish",
+            "value": 233091235.0
+        },
+        {
+            "product": "Crustaceans",
+            "value": 178696062.0
+        },
+        {
+            "product": "Non-fillet Fresh Fish",
+            "value": 134044322.0
+        },
+        {
+            "product": "Wheat Flours",
+            "value": 50822668.0
+        },
+        {
+            "product": "Bananas",
+            "value": 40641951.0
+        },
+        {
+            "product": "Molluscs",
+            "value": 37919201.0
+        },
+        {
+            "product": "Coffee",
+            "value": 21598082.0
+        },
+        {
+            "product": "Cereal Flours",
+            "value": 13528703.0
+        },
+        {
+            "product": "Dried Legumes",
+            "value": 13235444.0
+        },
+        {
+            "product": "Concentrated Milk",
+            "value": 10048114.0
+        }
+    ],
+    "Burundi": [
+        {
+            "product": "Coffee",
+            "value": 295275695.0
+        },
+        {
+            "product": "Tea",
+            "value": 149974958.0
+        },
+        {
+            "product": "Wheat Flours",
+            "value": 43577034.0
+        },
+        {
+            "product": "Tropical Fruits",
+            "value": 2541590.0
+        },
+        {
+            "product": "Corn",
+            "value": 1155160.9999999998
+        },
+        {
+            "product": "Pepper",
+            "value": 1055160.0
+        },
+        {
+            "product": "Other live plants, cuttings and slips; mushroom spawn",
+            "value": 758666.0
+        },
+        {
+            "product": "Other Fruits",
+            "value": 572138.0
+        },
+        {
+            "product": "Other Vegetables",
+            "value": 534252.0
+        },
+        {
+            "product": "Bananas",
+            "value": 486405.0
+        }
+    ],
+    "Namibia": [
+        {
+            "product": "Non-fillet Frozen Fish",
+            "value": 2464124918.0
+        },
+        {
+            "product": "Fish Fillets",
+            "value": 2372219641.0
+        },
+        {
+            "product": "Bovine",
+            "value": 628224425.0
+        },
+        {
+            "product": "Grapes",
+            "value": 542442280.0
+        },
+        {
+            "product": "Sheep and Goats",
+            "value": 254096132.0
+        },
+        {
+            "product": "Bovine Meat",
+            "value": 251359652.0
+        },
+        {
+            "product": "Crustaceans",
+            "value": 233549164.0
+        },
+        {
+            "product": "Molluscs",
+            "value": 192962721.0
+        },
+        {
+            "product": "Frozen Bovine Meat",
+            "value": 179687259.0
+        },
+        {
+            "product": "Poultry Meat",
+            "value": 160638278.0
+        }
+    ],
+    "Montenegro": [
+        {
+            "product": "Dried Legumes",
+            "value": 111077922.99999999
+        },
+        {
+            "product": "Preserved Meat",
+            "value": 108888330.0
+        },
+        {
+            "product": "Frozen Fruits and Nuts",
+            "value": 22075590.0
+        },
+        {
+            "product": "Dried Vegetables",
+            "value": 18020871.0
+        },
+        {
+            "product": "Frozen Vegetables",
+            "value": 8589277.0
+        },
+        {
+            "product": "Other Vegetables",
+            "value": 7891831.0
+        },
+        {
+            "product": "Pig Meat",
+            "value": 6501753.0
+        },
+        {
+            "product": "Animal Fat",
+            "value": 6287589.0
+        },
+        {
+            "product": "Frozen Bovine Meat",
+            "value": 5168669.0
+        },
+        {
+            "product": "Perfume Plants",
+            "value": 4476242.0
+        }
+    ],
+    "Gabon": [
+        {
+            "product": "Non-fillet Frozen Fish",
+            "value": 12676278.0
+        },
+        {
+            "product": "Dried/Salted/Smoked/Brined Fish",
+            "value": 7821189.0
+        },
+        {
+            "product": "Rice",
+            "value": 2458498.9999999995
+        },
+        {
+            "product": "Crustaceans",
+            "value": 1366924.0
+        },
+        {
+            "product": "Concentrated Milk",
+            "value": 1273478.0
+        },
+        {
+            "product": "Poultry Meat",
+            "value": 569023.0
+        },
+        {
+            "product": "Molluscs",
+            "value": 531038.0
+        },
+        {
+            "product": "Non-fillet Fresh Fish",
+            "value": 518483.0
+        },
+        {
+            "product": "Edible Offal",
+            "value": 422223.0
+        },
+        {
+            "product": "Soybean Oil",
+            "value": 409483.0
+        }
+    ],
+    "French Polynesia": [
+        {
+            "product": "Non-fillet Fresh Fish",
+            "value": 103896898.0
+        },
+        {
+            "product": "Vanilla",
+            "value": 40845396.0
+        },
+        {
+            "product": "Coconut Oil",
+            "value": 38884265.0
+        },
+        {
+            "product": "Coral and Shells",
+            "value": 11099434.0
+        },
+        {
+            "product": "Fish Fillets",
+            "value": 9040377.0
+        },
+        {
+            "product": "Live Fish",
+            "value": 7750305.0
+        },
+        {
+            "product": "Raw Sugar",
+            "value": 5579930.0
+        },
+        {
+            "product": "Molluscs",
+            "value": 2580938.0
+        },
+        {
+            "product": "Wheat",
+            "value": 1466226.0
+        },
+        {
+            "product": "Vegetable Saps",
+            "value": 1428455.0
+        }
+    ],
+    "Cayman Islands": [
+        {
+            "product": "Refined Petroleum",
+            "value": 106882541.0
+        },
+        {
+            "product": "Petroleum Gas",
+            "value": 67735868.0
+        },
+        {
+            "product": "Pepper",
+            "value": 5183006.0
+        },
+        {
+            "product": "Alcohol > 80% ABV",
+            "value": 3559539.0
+        },
+        {
+            "product": "Other Edible Preparations",
+            "value": 2139672.0
+        },
+        {
+            "product": "Coffee and Tea Extracts",
+            "value": 1582696.0
+        },
+        {
+            "product": "Hard Liquor",
+            "value": 1351408.0
+        },
+        {
+            "product": "Wine",
+            "value": 907232.0
+        },
+        {
+            "product": "Sowing Seeds",
+            "value": 803121.0
+        },
+        {
+            "product": "Fruit Juice",
+            "value": 558943.0000000001
+        }
+    ]
+}

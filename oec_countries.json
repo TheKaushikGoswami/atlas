@@ -1,0 +1,1009 @@
+{
+    "name": "Exporter Country",
+    "caption": "Exporter Country",
+    "annotations": {},
+    "depth": 3,
+    "scale": null,
+    "properties": [
+        {
+            "name": "Exporter Country ISO 2",
+            "caption": "Exporter Country ISO 2",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country ISO 3",
+            "caption": "Exporter Country ISO 3",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country ID Number",
+            "caption": "Exporter Country ID Number",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Feenstra ID",
+            "caption": "Exporter Country Feenstra ID",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Comtrade Name",
+            "caption": "Exporter Country Comtrade Name",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Color",
+            "caption": "Exporter Country Color",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Borders Land",
+            "caption": "Exporter Country Borders Land",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Borders Maritime",
+            "caption": "Exporter Country Borders Maritime",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Image Link",
+            "caption": "Exporter Country Image Link",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Image Author",
+            "caption": "Exporter Country Image Author",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Palette",
+            "caption": "Exporter Country Palette",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Trade Blocs",
+            "caption": "Exporter Country Trade Blocs",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Gender",
+            "caption": "Exporter Country Gender",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Plural",
+            "caption": "Exporter Country Plural",
+            "type": "i64",
+            "annotations": {}
+        },
+        {
+            "name": "Exporter Country Article",
+            "caption": "Exporter Country Article",
+            "type": "i64",
+            "annotations": {}
+        }
+    ],
+    "dtypes": {
+        "Exporter Country ID": "str",
+        "Exporter Country": "str"
+    },
+    "members": [
+        {
+            "key": "afago",
+            "caption": "Angola"
+        },
+        {
+            "key": "afbdi",
+            "caption": "Burundi"
+        },
+        {
+            "key": "afben",
+            "caption": "Benin"
+        },
+        {
+            "key": "afbfa",
+            "caption": "Burkina Faso"
+        },
+        {
+            "key": "afbwa",
+            "caption": "Botswana"
+        },
+        {
+            "key": "afcaf",
+            "caption": "Central African Republic"
+        },
+        {
+            "key": "afciv",
+            "caption": "Cote d'Ivoire"
+        },
+        {
+            "key": "afcmr",
+            "caption": "Cameroon"
+        },
+        {
+            "key": "afcod",
+            "caption": "Democratic Republic of the Congo"
+        },
+        {
+            "key": "afcog",
+            "caption": "Republic of the Congo"
+        },
+        {
+            "key": "afcom",
+            "caption": "Comoros"
+        },
+        {
+            "key": "afcpv",
+            "caption": "Cape Verde"
+        },
+        {
+            "key": "afdji",
+            "caption": "Djibouti"
+        },
+        {
+            "key": "afdza",
+            "caption": "Algeria"
+        },
+        {
+            "key": "afegy",
+            "caption": "Egypt"
+        },
+        {
+            "key": "aferi",
+            "caption": "Eritrea"
+        },
+        {
+            "key": "afeth",
+            "caption": "Ethiopia"
+        },
+        {
+            "key": "afgab",
+            "caption": "Gabon"
+        },
+        {
+            "key": "afgha",
+            "caption": "Ghana"
+        },
+        {
+            "key": "afgin",
+            "caption": "Guinea"
+        },
+        {
+            "key": "afgmb",
+            "caption": "Gambia"
+        },
+        {
+            "key": "afgnb",
+            "caption": "GuineaBissau"
+        },
+        {
+            "key": "afgnq",
+            "caption": "Equatorial Guinea"
+        },
+        {
+            "key": "afken",
+            "caption": "Kenya"
+        },
+        {
+            "key": "aflbr",
+            "caption": "Liberia"
+        },
+        {
+            "key": "aflby",
+            "caption": "Libya"
+        },
+        {
+            "key": "aflso",
+            "caption": "Lesotho"
+        },
+        {
+            "key": "afmar",
+            "caption": "Morocco"
+        },
+        {
+            "key": "afmdg",
+            "caption": "Madagascar"
+        },
+        {
+            "key": "afmli",
+            "caption": "Mali"
+        },
+        {
+            "key": "afmoz",
+            "caption": "Mozambique"
+        },
+        {
+            "key": "afmrt",
+            "caption": "Mauritania"
+        },
+        {
+            "key": "afmus",
+            "caption": "Mauritius"
+        },
+        {
+            "key": "afmwi",
+            "caption": "Malawi"
+        },
+        {
+            "key": "afnam",
+            "caption": "Namibia"
+        },
+        {
+            "key": "afner",
+            "caption": "Niger"
+        },
+        {
+            "key": "afnga",
+            "caption": "Nigeria"
+        },
+        {
+            "key": "afrwa",
+            "caption": "Rwanda"
+        },
+        {
+            "key": "afsdn",
+            "caption": "Sudan"
+        },
+        {
+            "key": "afsen",
+            "caption": "Senegal"
+        },
+        {
+            "key": "afshn",
+            "caption": "Saint Helena"
+        },
+        {
+            "key": "afsle",
+            "caption": "Sierra Leone"
+        },
+        {
+            "key": "afsom",
+            "caption": "Somalia"
+        },
+        {
+            "key": "afssd",
+            "caption": "South Sudan"
+        },
+        {
+            "key": "afstp",
+            "caption": "Sao Tome and Principe"
+        },
+        {
+            "key": "afswz",
+            "caption": "Eswatini"
+        },
+        {
+            "key": "afsyc",
+            "caption": "Seychelles"
+        },
+        {
+            "key": "aftcd",
+            "caption": "Chad"
+        },
+        {
+            "key": "aftgo",
+            "caption": "Togo"
+        },
+        {
+            "key": "aftun",
+            "caption": "Tunisia"
+        },
+        {
+            "key": "aftza",
+            "caption": "Tanzania"
+        },
+        {
+            "key": "afuga",
+            "caption": "Uganda"
+        },
+        {
+            "key": "afzaf",
+            "caption": "South Africa"
+        },
+        {
+            "key": "afzmb",
+            "caption": "Zambia"
+        },
+        {
+            "key": "afzwe",
+            "caption": "Zimbabwe"
+        },
+        {
+            "key": "asafg",
+            "caption": "Afghanistan"
+        },
+        {
+            "key": "asare",
+            "caption": "United Arab Emirates"
+        },
+        {
+            "key": "asarm",
+            "caption": "Armenia"
+        },
+        {
+            "key": "asaze",
+            "caption": "Azerbaijan"
+        },
+        {
+            "key": "asbgd",
+            "caption": "Bangladesh"
+        },
+        {
+            "key": "asbhr",
+            "caption": "Bahrain"
+        },
+        {
+            "key": "asbrn",
+            "caption": "Brunei"
+        },
+        {
+            "key": "asbtn",
+            "caption": "Bhutan"
+        },
+        {
+            "key": "ascck",
+            "caption": "Cocos (Keeling) Islands"
+        },
+        {
+            "key": "aschn",
+            "caption": "China"
+        },
+        {
+            "key": "ascxr",
+            "caption": "Christmas Island"
+        },
+        {
+            "key": "ascyp",
+            "caption": "Cyprus"
+        },
+        {
+            "key": "asgeo",
+            "caption": "Georgia"
+        },
+        {
+            "key": "ashkg",
+            "caption": "Hong Kong"
+        },
+        {
+            "key": "asidn",
+            "caption": "Indonesia"
+        },
+        {
+            "key": "asind",
+            "caption": "India"
+        },
+        {
+            "key": "asiot",
+            "caption": "British Indian Ocean Territory"
+        },
+        {
+            "key": "asirn",
+            "caption": "Iran"
+        },
+        {
+            "key": "asirq",
+            "caption": "Iraq"
+        },
+        {
+            "key": "asisr",
+            "caption": "Israel"
+        },
+        {
+            "key": "asjor",
+            "caption": "Jordan"
+        },
+        {
+            "key": "asjpn",
+            "caption": "Japan"
+        },
+        {
+            "key": "askaz",
+            "caption": "Kazakhstan"
+        },
+        {
+            "key": "askgz",
+            "caption": "Kyrgyzstan"
+        },
+        {
+            "key": "askhm",
+            "caption": "Cambodia"
+        },
+        {
+            "key": "askor",
+            "caption": "South Korea"
+        },
+        {
+            "key": "askwt",
+            "caption": "Kuwait"
+        },
+        {
+            "key": "aslao",
+            "caption": "Laos"
+        },
+        {
+            "key": "aslbn",
+            "caption": "Lebanon"
+        },
+        {
+            "key": "aslka",
+            "caption": "Sri Lanka"
+        },
+        {
+            "key": "asmac",
+            "caption": "Macau"
+        },
+        {
+            "key": "asmdv",
+            "caption": "Maldives"
+        },
+        {
+            "key": "asmmr",
+            "caption": "Burma"
+        },
+        {
+            "key": "asmng",
+            "caption": "Mongolia"
+        },
+        {
+            "key": "asmys",
+            "caption": "Malaysia"
+        },
+        {
+            "key": "asnpl",
+            "caption": "Nepal"
+        },
+        {
+            "key": "asomn",
+            "caption": "Oman"
+        },
+        {
+            "key": "aspak",
+            "caption": "Pakistan"
+        },
+        {
+            "key": "asphl",
+            "caption": "Philippines"
+        },
+        {
+            "key": "asprk",
+            "caption": "North Korea"
+        },
+        {
+            "key": "aspse",
+            "caption": "Palestine"
+        },
+        {
+            "key": "asqat",
+            "caption": "Qatar"
+        },
+        {
+            "key": "assau",
+            "caption": "Saudi Arabia"
+        },
+        {
+            "key": "assgp",
+            "caption": "Singapore"
+        },
+        {
+            "key": "assyr",
+            "caption": "Syria"
+        },
+        {
+            "key": "astha",
+            "caption": "Thailand"
+        },
+        {
+            "key": "astjk",
+            "caption": "Tajikistan"
+        },
+        {
+            "key": "astkm",
+            "caption": "Turkmenistan"
+        },
+        {
+            "key": "astls",
+            "caption": "TimorLeste"
+        },
+        {
+            "key": "astur",
+            "caption": "Turkey"
+        },
+        {
+            "key": "astwn",
+            "caption": "Chinese Taipei"
+        },
+        {
+            "key": "asuzb",
+            "caption": "Uzbekistan"
+        },
+        {
+            "key": "asvnm",
+            "caption": "Vietnam"
+        },
+        {
+            "key": "asyem",
+            "caption": "Yemen"
+        },
+        {
+            "key": "eualb",
+            "caption": "Albania"
+        },
+        {
+            "key": "euand",
+            "caption": "Andorra"
+        },
+        {
+            "key": "euaut",
+            "caption": "Austria"
+        },
+        {
+            "key": "eubel",
+            "caption": "Belgium"
+        },
+        {
+            "key": "eubgr",
+            "caption": "Bulgaria"
+        },
+        {
+            "key": "eubih",
+            "caption": "Bosnia and Herzegovina"
+        },
+        {
+            "key": "eublr",
+            "caption": "Belarus"
+        },
+        {
+            "key": "euche",
+            "caption": "Switzerland"
+        },
+        {
+            "key": "eucze",
+            "caption": "Czechia"
+        },
+        {
+            "key": "eudeu",
+            "caption": "Germany"
+        },
+        {
+            "key": "eudnk",
+            "caption": "Denmark"
+        },
+        {
+            "key": "euesp",
+            "caption": "Spain"
+        },
+        {
+            "key": "euest",
+            "caption": "Estonia"
+        },
+        {
+            "key": "eufin",
+            "caption": "Finland"
+        },
+        {
+            "key": "eufra",
+            "caption": "France"
+        },
+        {
+            "key": "eugbr",
+            "caption": "United Kingdom"
+        },
+        {
+            "key": "eugib",
+            "caption": "Gibraltar"
+        },
+        {
+            "key": "eugrc",
+            "caption": "Greece"
+        },
+        {
+            "key": "euhrv",
+            "caption": "Croatia"
+        },
+        {
+            "key": "euhun",
+            "caption": "Hungary"
+        },
+        {
+            "key": "euirl",
+            "caption": "Ireland"
+        },
+        {
+            "key": "euisl",
+            "caption": "Iceland"
+        },
+        {
+            "key": "euita",
+            "caption": "Italy"
+        },
+        {
+            "key": "eultu",
+            "caption": "Lithuania"
+        },
+        {
+            "key": "eulux",
+            "caption": "Luxembourg"
+        },
+        {
+            "key": "eulva",
+            "caption": "Latvia"
+        },
+        {
+            "key": "eumda",
+            "caption": "Moldova"
+        },
+        {
+            "key": "eumkd",
+            "caption": "North Macedonia"
+        },
+        {
+            "key": "eumlt",
+            "caption": "Malta"
+        },
+        {
+            "key": "eumne",
+            "caption": "Montenegro"
+        },
+        {
+            "key": "eunld",
+            "caption": "Netherlands"
+        },
+        {
+            "key": "eunor",
+            "caption": "Norway"
+        },
+        {
+            "key": "eupol",
+            "caption": "Poland"
+        },
+        {
+            "key": "euprt",
+            "caption": "Portugal"
+        },
+        {
+            "key": "eurou",
+            "caption": "Romania"
+        },
+        {
+            "key": "eurus",
+            "caption": "Russia"
+        },
+        {
+            "key": "eusmr",
+            "caption": "San Marino"
+        },
+        {
+            "key": "eusrb",
+            "caption": "Serbia"
+        },
+        {
+            "key": "eusvk",
+            "caption": "Slovakia"
+        },
+        {
+            "key": "eusvn",
+            "caption": "Slovenia"
+        },
+        {
+            "key": "euswe",
+            "caption": "Sweden"
+        },
+        {
+            "key": "euukr",
+            "caption": "Ukraine"
+        },
+        {
+            "key": "naabw",
+            "caption": "Aruba"
+        },
+        {
+            "key": "naaia",
+            "caption": "Anguilla"
+        },
+        {
+            "key": "naatg",
+            "caption": "Antigua and Barbuda"
+        },
+        {
+            "key": "nabes",
+            "caption": "Bonaire"
+        },
+        {
+            "key": "nabhs",
+            "caption": "Bahamas"
+        },
+        {
+            "key": "nablm",
+            "caption": "Saint Barth\u00e9lemy"
+        },
+        {
+            "key": "nablz",
+            "caption": "Belize"
+        },
+        {
+            "key": "nabmu",
+            "caption": "Bermuda"
+        },
+        {
+            "key": "nabrb",
+            "caption": "Barbados"
+        },
+        {
+            "key": "nacan",
+            "caption": "Canada"
+        },
+        {
+            "key": "nacri",
+            "caption": "Costa Rica"
+        },
+        {
+            "key": "nacub",
+            "caption": "Cuba"
+        },
+        {
+            "key": "nacuw",
+            "caption": "Cura\u00e7ao"
+        },
+        {
+            "key": "nacym",
+            "caption": "Cayman Islands"
+        },
+        {
+            "key": "nadma",
+            "caption": "Dominica"
+        },
+        {
+            "key": "nadom",
+            "caption": "Dominican Republic"
+        },
+        {
+            "key": "nagrd",
+            "caption": "Grenada"
+        },
+        {
+            "key": "nagrl",
+            "caption": "Greenland"
+        },
+        {
+            "key": "nagtm",
+            "caption": "Guatemala"
+        },
+        {
+            "key": "nahnd",
+            "caption": "Honduras"
+        },
+        {
+            "key": "nahti",
+            "caption": "Haiti"
+        },
+        {
+            "key": "najam",
+            "caption": "Jamaica"
+        },
+        {
+            "key": "nakna",
+            "caption": "Saint Kitts and Nevis"
+        },
+        {
+            "key": "nalca",
+            "caption": "Saint Lucia"
+        },
+        {
+            "key": "namaf",
+            "caption": "Saint Martin"
+        },
+        {
+            "key": "namex",
+            "caption": "Mexico"
+        },
+        {
+            "key": "namsr",
+            "caption": "Montserrat"
+        },
+        {
+            "key": "nanic",
+            "caption": "Nicaragua"
+        },
+        {
+            "key": "napan",
+            "caption": "Panama"
+        },
+        {
+            "key": "naslv",
+            "caption": "El Salvador"
+        },
+        {
+            "key": "naspm",
+            "caption": "Saint Pierre and Miquelon"
+        },
+        {
+            "key": "natca",
+            "caption": "Turks and Caicos Islands"
+        },
+        {
+            "key": "natto",
+            "caption": "Trinidad and Tobago"
+        },
+        {
+            "key": "nausa",
+            "caption": "United States"
+        },
+        {
+            "key": "navct",
+            "caption": "Saint Vincent and the Grenadines"
+        },
+        {
+            "key": "navgb",
+            "caption": "British Virgin Islands"
+        },
+        {
+            "key": "ocasm",
+            "caption": "American Samoa"
+        },
+        {
+            "key": "ocaus",
+            "caption": "Australia"
+        },
+        {
+            "key": "occok",
+            "caption": "Cook Islands"
+        },
+        {
+            "key": "ocfji",
+            "caption": "Fiji"
+        },
+        {
+            "key": "ocfsm",
+            "caption": "Micronesia"
+        },
+        {
+            "key": "ocgum",
+            "caption": "Guam"
+        },
+        {
+            "key": "ockir",
+            "caption": "Kiribati"
+        },
+        {
+            "key": "ocmhl",
+            "caption": "Marshall Islands"
+        },
+        {
+            "key": "ocmnp",
+            "caption": "Northern Mariana Islands"
+        },
+        {
+            "key": "ocncl",
+            "caption": "New Caledonia"
+        },
+        {
+            "key": "ocnfk",
+            "caption": "Norfolk Island"
+        },
+        {
+            "key": "ocniu",
+            "caption": "Niue"
+        },
+        {
+            "key": "ocnru",
+            "caption": "Nauru"
+        },
+        {
+            "key": "ocnzl",
+            "caption": "New Zealand"
+        },
+        {
+            "key": "ocpcn",
+            "caption": "Pitcairn Islands"
+        },
+        {
+            "key": "ocplw",
+            "caption": "Palau"
+        },
+        {
+            "key": "ocpng",
+            "caption": "Papua New Guinea"
+        },
+        {
+            "key": "ocpyf",
+            "caption": "French Polynesia"
+        },
+        {
+            "key": "ocslb",
+            "caption": "Solomon Islands"
+        },
+        {
+            "key": "octkl",
+            "caption": "Tokelau"
+        },
+        {
+            "key": "octon",
+            "caption": "Tonga"
+        },
+        {
+            "key": "octuv",
+            "caption": "Tuvalu"
+        },
+        {
+            "key": "ocvut",
+            "caption": "Vanuatu"
+        },
+        {
+            "key": "ocwlf",
+            "caption": "Wallis and Futuna"
+        },
+        {
+            "key": "ocwsm",
+            "caption": "Samoa"
+        },
+        {
+            "key": "saarg",
+            "caption": "Argentina"
+        },
+        {
+            "key": "sabol",
+            "caption": "Bolivia"
+        },
+        {
+            "key": "sabra",
+            "caption": "Brazil"
+        },
+        {
+            "key": "sachl",
+            "caption": "Chile"
+        },
+        {
+            "key": "sacol",
+            "caption": "Colombia"
+        },
+        {
+            "key": "saecu",
+            "caption": "Ecuador"
+        },
+        {
+            "key": "saflk",
+            "caption": "Falkland Islands"
+        },
+        {
+            "key": "saguy",
+            "caption": "Guyana"
+        },
+        {
+            "key": "saper",
+            "caption": "Peru"
+        },
+        {
+            "key": "sapry",
+            "caption": "Paraguay"
+        },
+        {
+            "key": "sasur",
+            "caption": "Suriname"
+        },
+        {
+            "key": "saury",
+            "caption": "Uruguay"
+        },
+        {
+            "key": "saven",
+            "caption": "Venezuela"
+        },
+        {
+            "key": "xxatf",
+            "caption": "French Southern Territories"
+        }
+    ]
+}
