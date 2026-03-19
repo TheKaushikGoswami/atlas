@@ -77,12 +77,11 @@ class TradleSessionView(discord.ui.View):
         embed = interaction.message.embeds[0]
         
         # Build guess history text
-        history = ""
-        for g in self.session.guesses:
-            dist_str = f"{int(g.distance_km):,} km" if (g.distance_km > 0 or g.is_correct) else "N/A"
-            history += f"{self.engine.get_country_name(g.country_iso)} | {dist_str} | {g.direction} | {g.proximity_pct}%\n"
-        
+        history = self.format_history()
         embed.description = f"```\n{history}\n```"
+        
+        # Update title with tries
+        embed.title = f"Tradle Round #{self.session.round_id} - {len(self.session.guesses)}/6"
         
         if self.session.won:
             embed.color = discord.Color.green()
@@ -97,6 +96,15 @@ class TradleSessionView(discord.ui.View):
             await interaction.response.edit_message(content=content, embed=embed, view=None)
         else:
             await interaction.response.edit_message(embed=embed, view=self)
+
+    def format_history(self) -> str:
+        history = ""
+        for g in self.session.guesses:
+            dist_val = g.distance_km
+            # Display N/A only if distance is 0 and it's NOT correct (meaning missing coords)
+            dist_str = f"{int(dist_val):,} km" if (dist_val > 0 or g.is_correct) else "N/A"
+            history += f"{self.engine.get_country_name(g.country_iso)} | {dist_str} | {g.direction} | {g.proximity_pct}%\n"
+        return history
 
 class PlayTradleView(discord.ui.View):
     """The public persistent view with the 'Play Tradle!' button."""
@@ -129,18 +137,21 @@ class PlayTradleView(discord.ui.View):
         file = discord.File(img_buf, filename="tradle_exports.png")
 
         # 4. Send ephemeral game view
-        embed = discord.Embed(title=f"Tradle Round #{round_data.id}", color=discord.Color.blue())
+        title = f"Tradle Round #{round_data.id}"
+        if session.guesses:
+            title += f" - {len(session.guesses)}/6"
+            
+        embed = discord.Embed(title=title, color=discord.Color.blue())
         embed.set_image(url="attachment://tradle_exports.png")
         embed.description = "Guess the country exporting these products!"
         
+        view = TradleSessionView(self.cog.engine, self.cog.db, session, round_data.target_country_iso, round_data.total_export_value_str)
+
         # If user already had guesses, show them
         if session.guesses:
-            history = ""
-            for g in session.guesses:
-                history += f"{self.cog.engine.get_country_name(g.country_iso)} | {int(g.distance_km):,} km | {g.direction} | {g.proximity_pct}%\n"
+            history = view.format_history()
             embed.description = f"```\n{history}\n```"
 
-        view = TradleSessionView(self.cog.engine, self.cog.db, session, round_data.target_country_iso, round_data.total_export_value_str)
         await interaction.response.send_message(embed=embed, file=file, view=view, ephemeral=True)
         
         # 5. Opt-in guild if not already
