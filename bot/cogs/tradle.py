@@ -177,11 +177,7 @@ class TradleCog(commands.Cog):
     def cog_unload(self):
         self.tradle_loop.cancel()
 
-    @tasks.loop(time=[
-        datetime.time(hour=0, minute=0, tzinfo=IST),
-        datetime.time(hour=8, minute=0, tzinfo=IST),
-        datetime.time(hour=16, minute=0, tzinfo=IST),
-    ])
+    @tasks.loop(hours=8.0)
     async def tradle_loop(self):
         """Run a new Tradle round every 8 hours at 00:00, 08:00, 16:00 IST."""
         await self.trigger_new_round()
@@ -478,8 +474,8 @@ class TradleCog(commands.Cog):
         avg_guesses_for_wins = (stats["total_score"] / won) if won > 0 else 0.0
 
         sessions = int(totals["sessions"] or 0) if totals else 0
-        first_played = totals["first_played"] if totals else None
-        last_played = totals["last_played"] if totals else None
+        first_played = totals["first_played"].astimezone(IST) if totals and totals["first_played"] else None
+        last_played = totals["last_played"].astimezone(IST) if totals and totals["last_played"] else None
         rank = rank_row["rank"] if rank_row else None
 
         embed = discord.Embed(title=f"📊 Tradle Stats: {target.display_name}", color=discord.Color.blue())
@@ -491,8 +487,8 @@ class TradleCog(commands.Cog):
         embed.add_field(
             name="Activity",
             value=(
-                f"First: **{first_played.strftime('%Y-%m-%d %H:%M UTC')}**\n"
-                f"Last: **{last_played.strftime('%Y-%m-%d %H:%M UTC')}**"
+                f"First: **{first_played.strftime('%Y-%m-%d %H:%M')}**\n"
+                f"Last: **{last_played.strftime('%Y-%m-%d %H:%M')}**"
                 if first_played and last_played else "Not enough history"
             ),
             inline=False
@@ -501,6 +497,17 @@ class TradleCog(commands.Cog):
         embed.set_footer(text="Tip: Use /tradle daily to keep your streak alive.")
         
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="tradleforce", description="Force start a new Tradle round (Restricted).")
+    async def tradleforce_cmd(self, interaction: discord.Interaction):
+        """Force start a new round and reset the 8-hour timer. Only for authorized user."""
+        if interaction.user.id != 1384163020439158867:
+            return await interaction.response.send_message("❌ You are not authorized to use this command.", ephemeral=True)
+            
+        await interaction.response.defer(ephemeral=True)
+        # Restarting the loop will stop it and then start it, which calls the function once immediately.
+        self.tradle_loop.restart()
+        await interaction.followup.send("✅ New Tradle round generated and timer reset to 8 hours from now.")
 
 async def setup(bot):
     await bot.add_cog(TradleCog(bot))
