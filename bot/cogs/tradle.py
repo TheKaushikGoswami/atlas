@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import datetime
+import asyncio
 import logging
 import random
 import json
@@ -181,6 +182,32 @@ class TradleCog(commands.Cog):
     async def tradle_loop(self):
         """Run a new Tradle round every 8 hours at 00:00, 08:00, 16:00 IST."""
         await self.trigger_new_round()
+
+    @tradle_loop.before_loop
+    async def before_tradle_loop(self):
+        """Align the 8-hour loop with the last round's start time from the database."""
+        await self.bot.wait_until_ready()
+        # Ensure we have a pool connection
+        await self.db.connect()
+        
+        active = await self.db.get_active_round()
+        if active and active.started_at:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            # Ensure started_at is aware UTC
+            started = active.started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=datetime.timezone.utc)
+            else:
+                started = started.astimezone(datetime.timezone.utc)
+            
+            next_due = started + datetime.timedelta(hours=8)
+            wait_sec = (next_due - now).total_seconds()
+            
+            if wait_sec > 0:
+                logger.info(f"Aligning Tradle loop: Next round in {wait_sec:.1f}s.")
+                await asyncio.sleep(wait_sec)
+        else:
+            logger.info("No active round found or first run; starting Tradle loop immediately.")
 
     @staticmethod
     def _parse_guesses_field(raw: Any) -> List[Dict[str, Any]]:
@@ -505,7 +532,10 @@ class TradleCog(commands.Cog):
             return await interaction.response.send_message("❌ You are not authorized to use this command.", ephemeral=True)
             
         await interaction.response.defer(ephemeral=True)
-        # Restarting the loop will stop it and then start it, which calls the function once immediately.
+        # 1. Manually start the new round
+        await self.trigger_new_round()
+        # 2. Restarting the loop will stop it and then call before_loop.
+        # before_loop will see the round we just started and sleep for 8 hours.
         self.tradle_loop.restart()
         await interaction.followup.send("✅ New Tradle round generated and timer reset to 8 hours from now.")
 
