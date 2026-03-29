@@ -154,8 +154,38 @@ class TradleLookup:
         """Get results for a specific round to generate the summary."""
         if not self.pool: await self.connect()
         return await self.pool.fetch("""
-            SELECT user_id, won, score 
+            SELECT user_id, won, score, guesses_json, completed_at
             FROM tradle_guesses 
             WHERE round_id = $1 
             ORDER BY won DESC, score ASC, completed_at ASC
         """, round_id)
+
+    async def get_live_post(self, round_id: int, user_id: int, guild_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch stored public live-post message mapping for a player/round/guild."""
+        if not self.pool: await self.connect()
+        row = await self.pool.fetchrow("""
+            SELECT round_id, user_id, guild_id, channel_id, message_id, created_at, updated_at
+            FROM tradle_live_posts
+            WHERE round_id = $1 AND user_id = $2 AND guild_id = $3
+        """, round_id, user_id, guild_id)
+        return dict(row) if row else None
+
+    async def upsert_live_post(
+        self,
+        round_id: int,
+        user_id: int,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+    ) -> None:
+        """Insert or update the public live-post mapping."""
+        if not self.pool: await self.connect()
+        await self.pool.execute("""
+            INSERT INTO tradle_live_posts (round_id, user_id, guild_id, channel_id, message_id, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (round_id, user_id, guild_id)
+            DO UPDATE SET
+                channel_id = EXCLUDED.channel_id,
+                message_id = EXCLUDED.message_id,
+                updated_at = NOW()
+        """, round_id, user_id, guild_id, channel_id, message_id)

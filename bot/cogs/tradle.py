@@ -3,17 +3,19 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import datetime
 import logging
-import io
 import random
+import json
 from typing import Optional, List, Dict, Any
 
 from tradle.engine import TradleEngine
 from tradle.db import TradleLookup
 from tradle.treemap import TradleTreemap
+from tradle.cards import TradleCardRenderer
 from tradle.state import PlayerSession, GuessEntry
 from config import config
 
 logger = logging.getLogger(__name__)
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 
 # --- UI Components ---
 
@@ -35,8 +37,17 @@ class GuessModal(discord.ui.Modal, title="🌍 Submit your Tradle guess"):
 
 class TradleSessionView(discord.ui.View):
     """The ephemeral view for a single player's game session."""
-    def __init__(self, engine: TradleEngine, db: TradleLookup, session: PlayerSession, target_iso: str, total_val: str):
+    def __init__(
+        self,
+        cog: 'TradleCog',
+        engine: TradleEngine,
+        db: TradleLookup,
+        session: PlayerSession,
+        target_iso: str,
+        total_val: str,
+    ):
         super().__init__(timeout=None)
+        self.cog = cog
         self.engine = engine
         self.db = db
         self.session = session
@@ -58,6 +69,7 @@ class TradleSessionView(discord.ui.View):
         self.session.won = False
         self.session.completed_at = datetime.datetime.now()
         await self.db.save_player_session(self.session)
+        await self.cog.update_live_progress_message(interaction, self.session, final_state="gave up")
         
         target_name = self.engine.get_country_name(self.target_iso)
         await interaction.response.edit_message(
@@ -72,6 +84,12 @@ class TradleSessionView(discord.ui.View):
 
         # Save session
         await self.db.save_player_session(self.session)
+        final_state = None
+        if self.session.won:
+            final_state = "solved"
+        elif self.session.game_over:
+            final_state = "game over"
+        await self.cog.update_live_progress_message(interaction, self.session, final_state=final_state)
 
         # Update message
         embed = interaction.message.embeds[0]
@@ -139,12 +157,13 @@ class PlayTradleView(discord.ui.View):
                 history += f"{self.cog.engine.get_country_name(g.country_iso)} | {int(g.distance_km):,} km | {g.direction} | {g.proximity_pct}%\n"
             embed.description = f"```\n{history}\n```"
 
-        view = TradleSessionView(self.cog.engine, self.cog.db, session, round_data.target_country_iso, round_data.total_export_value_str)
+        view = TradleSessionView(self.cog, self.cog.engine, self.cog.db, session, round_data.target_country_iso, round_data.total_export_value_str)
         await interaction.response.send_message(embed=embed, file=file, view=view, ephemeral=True)
         
         # 5. Opt-in guild if not already
         if interaction.guild:
             await self.cog.db.set_guild_config(interaction.guild.id, interaction.channel.id, is_active=True)
+            await self.cog.ensure_live_progress_message(interaction, session)
 
 # --- Cog ---
 
@@ -158,16 +177,190 @@ class TradleCog(commands.Cog):
     def cog_unload(self):
         self.tradle_loop.cancel()
 
-    @tasks.loop(time=[datetime.time(hour=0, minute=0), datetime.time(hour=12, minute=0)])
+    @tasks.loop(time=[
+        datetime.time(hour=0, minute=0, tzinfo=IST),
+        datetime.time(hour=8, minute=0, tzinfo=IST),
+        datetime.time(hour=16, minute=0, tzinfo=IST),
+    ])
     async def tradle_loop(self):
-        """12 AM/PM IST Daily Task."""
-        # Note: discord.py time is UTC. IST is UTC+5:30.
-        # 12 AM IST = 6:30 PM UTC Previous Day
-        # 12 PM IST = 6:30 AM UTC
-        # If the user wants 12 AM/PM LOCAL IST, I should adjust.
-        # To simplify, let's assume the provided times are intended to be IST.
-        # For now, I'll stick to the provided times. (User would need to adjust for TZ).
+        """Run a new Tradle round every 8 hours at 00:00, 08:00, 16:00 IST."""
         await self.trigger_new_round()
+
+    @staticmethod
+    def _parse_guesses_field(raw: Any) -> List[Dict[str, Any]]:
+        if raw is None:
+            return []
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            try:
+                decoded = json.loads(raw)
+                if isinstance(decoded, list):
+                    return decoded
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    async def _fetch_avatar_bytes(self, user: discord.abc.User) -> Optional[bytes]:
+        try:
+            return await user.display_avatar.read()
+        except Exception:
+            return None
+
+    async def _build_round_card_file(
+        self,
+        channel: discord.abc.Messageable,
+        new_round_id: int,
+        old_round_id: Optional[int],
+        results: List[Dict[str, Any]],
+    ) -> Optional[discord.File]:
+        try:
+            players = []
+            guild = getattr(channel, "guild", None)
+            for row in results[:5]:
+                data = dict(row)
+                user_id = int(data["user_id"])
+                guesses = self._parse_guesses_field(data.get("guesses_json"))
+                score = data.get("score")
+                name = f"<@{user_id}>"
+                avatar_bytes = None
+
+                member = guild.get_member(user_id) if guild else None
+                if member:
+                    name = member.display_name
+                    avatar_bytes = await self._fetch_avatar_bytes(member)
+                else:
+                    try:
+                        user = await self.bot.fetch_user(user_id)
+                        name = user.display_name
+                        avatar_bytes = await self._fetch_avatar_bytes(user)
+                    except Exception:
+                        pass
+
+                players.append({
+                    "name": name,
+                    "score": score,
+                    "guesses": guesses,
+                    "avatar_bytes": avatar_bytes,
+                })
+
+            card = TradleCardRenderer.render_round_announcement(
+                new_round_id=new_round_id,
+                previous_round_id=old_round_id,
+                players=players,
+            )
+            return discord.File(card, filename="tradle_round_card.png")
+        except Exception:
+            logger.exception("Failed to render round announcement card.")
+            return None
+
+    async def ensure_live_progress_message(self, interaction: discord.Interaction, session: PlayerSession) -> None:
+        """Create or refresh a public live-progress post for this player's current round."""
+        if not interaction.guild or not interaction.channel:
+            return
+
+        status = f"{interaction.user.display_name} is playing Tradle #{session.round_id}"
+        try:
+            await self._upsert_live_progress_message(
+                guild=interaction.guild,
+                channel=interaction.channel,
+                user=interaction.user,
+                session=session,
+                status=status,
+            )
+        except Exception:
+            logger.exception("Unable to create live progress message.")
+
+    async def update_live_progress_message(
+        self,
+        interaction: discord.Interaction,
+        session: PlayerSession,
+        final_state: Optional[str] = None,
+    ) -> None:
+        """Update public live-progress post after each guess or completion."""
+        if not interaction.guild:
+            return
+
+        if final_state == "solved":
+            status = f"{interaction.user.display_name} solved Tradle #{session.round_id} in {len(session.guesses)}/6"
+        elif final_state == "gave up":
+            status = f"{interaction.user.display_name} gave up on Tradle #{session.round_id}"
+        elif final_state == "game over":
+            status = f"{interaction.user.display_name} finished Tradle #{session.round_id} (game over)"
+        else:
+            status = f"{interaction.user.display_name} is playing Tradle #{session.round_id}"
+
+        channel = interaction.channel
+        if not channel:
+            live = await self.db.get_live_post(session.round_id, interaction.user.id, interaction.guild.id)
+            if live:
+                channel = self.bot.get_channel(int(live["channel_id"]))
+        if not channel:
+            return
+
+        try:
+            await self._upsert_live_progress_message(
+                guild=interaction.guild,
+                channel=channel,
+                user=interaction.user,
+                session=session,
+                status=status,
+            )
+        except Exception:
+            logger.exception("Unable to update live progress message.")
+
+    async def _upsert_live_progress_message(
+        self,
+        *,
+        guild: discord.Guild,
+        channel: discord.abc.Messageable,
+        user: discord.abc.User,
+        session: PlayerSession,
+        status: str,
+    ) -> None:
+        try:
+            avatar_bytes = await self._fetch_avatar_bytes(user)
+            img = TradleCardRenderer.render_live_progress(
+                round_id=session.round_id,
+                player_name=user.display_name,
+                guesses=session.guesses,
+                status_text=status,
+                avatar_bytes=avatar_bytes,
+            )
+            file = discord.File(img, filename="tradle_live.png")
+        except Exception:
+            logger.exception("Failed to render live progress image.")
+            file = None
+
+        content = f"{user.mention} {status}"
+        existing = await self.db.get_live_post(session.round_id, user.id, guild.id)
+        target_channel = channel
+        if existing:
+            maybe_channel = self.bot.get_channel(int(existing["channel_id"]))
+            if maybe_channel:
+                target_channel = maybe_channel
+            try:
+                msg = await target_channel.fetch_message(int(existing["message_id"]))
+                if file:
+                    await msg.edit(content=content, attachments=[file])
+                else:
+                    await msg.edit(content=content)
+                return
+            except Exception:
+                logger.warning("Stored live progress message not found; creating a new one.")
+
+        if file:
+            msg = await target_channel.send(content=content, file=file)
+        else:
+            msg = await target_channel.send(content=content)
+
+        await self.db.upsert_live_post(
+            round_id=session.round_id,
+            user_id=user.id,
+            guild_id=guild.id,
+            channel_id=target_channel.id,
+            message_id=msg.id,
+        )
 
     async def trigger_new_round(self):
         logger.info("Triggering new Tradle round...")
@@ -190,6 +383,7 @@ class TradleCog(commands.Cog):
             
             # Summary of previous round
             summary_msg = ""
+            results = []
             if old_round:
                 results = await self.db.get_round_results(old_round.id)
                 if results:
@@ -201,15 +395,31 @@ class TradleCog(commands.Cog):
                 else:
                     summary_msg = "No one guessed yesterday's Tradle."
             
+            card_file = await self._build_round_card_file(
+                channel=channel,
+                new_round_id=new_round.id,
+                old_round_id=old_round.id if old_round else None,
+                results=results,
+            )
+
+            description = "Click the button below to play privately!"
+            if not card_file and summary_msg:
+                description = f"{summary_msg}\n{description}"
+
             embed = discord.Embed(
                 title=f"🌍 New Tradle Round #{new_round.id}!",
-                description=f"{summary_msg}\nClick the button below to play privately!",
+                description=description,
                 color=discord.Color.gold()
             )
-            embed.set_footer(text="A new round starts every 12 hours.")
+            embed.set_footer(text="A new round starts every 8 hours.")
+            if card_file:
+                embed.set_image(url="attachment://tradle_round_card.png")
             
             view = PlayTradleView(self)
-            await channel.send(embed=embed, view=view)
+            if card_file:
+                await channel.send(embed=embed, file=card_file, view=view)
+            else:
+                await channel.send(embed=embed, view=view)
 
     @app_commands.command(name="tradle", description="Start or view today's Tradle game.")
     async def tradle_cmd(self, interaction: discord.Interaction):
@@ -239,18 +449,56 @@ class TradleCog(commands.Cog):
         await self.db.connect()
         async with self.db.pool.acquire() as conn:
             stats = await conn.fetchrow("SELECT * FROM tradle_stats WHERE user_id = $1", target.id)
+            totals = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) AS sessions,
+                    COUNT(*) FILTER (WHERE won = TRUE) AS wins,
+                    COUNT(*) FILTER (WHERE won = FALSE) AS losses,
+                    MIN(completed_at) AS first_played,
+                    MAX(completed_at) AS last_played
+                FROM tradle_guesses
+                WHERE user_id = $1
+            """, target.id)
+            rank_row = await conn.fetchrow("""
+                SELECT rank FROM (
+                    SELECT user_id,
+                           DENSE_RANK() OVER (ORDER BY total_won DESC, total_score ASC, best_streak DESC) AS rank
+                    FROM tradle_stats
+                ) ranked
+                WHERE user_id = $1
+            """, target.id)
             
         if not stats:
             return await interaction.response.send_message(f"No stats found for {target.mention}.", ephemeral=True)
-            
-        avg_score = stats["total_score"] / stats["total_played"] if stats["total_played"] > 0 else 0
+
+        played = int(stats["total_played"] or 0)
+        won = int(stats["total_won"] or 0)
+        lost = max(played - won, 0)
+        win_pct = (won / played * 100) if played > 0 else 0.0
+        avg_guesses_for_wins = (stats["total_score"] / won) if won > 0 else 0.0
+
+        sessions = int(totals["sessions"] or 0) if totals else 0
+        first_played = totals["first_played"] if totals else None
+        last_played = totals["last_played"] if totals else None
+        rank = rank_row["rank"] if rank_row else None
+
         embed = discord.Embed(title=f"📊 Tradle Stats: {target.display_name}", color=discord.Color.blue())
-        embed.add_field(name="Played", value=stats["total_played"])
-        embed.add_field(name="Won", value=stats["total_won"])
-        embed.add_field(name="Win %", value=f"{(stats['total_won']/stats['total_played']*100):.1f}%")
-        embed.add_field(name="Current Streak", value=stats["current_streak"])
-        embed.add_field(name="Best Streak", value=stats["best_streak"])
-        embed.add_field(name="Avg Guesses", value=f"{avg_score:.1f}")
+        embed.add_field(name="Games", value=f"Played: **{played}**\nWon: **{won}**\nLost: **{lost}**", inline=True)
+        embed.add_field(name="Performance", value=f"Win Rate: **{win_pct:.1f}%**\nAvg Guesses (wins): **{avg_guesses_for_wins:.2f}**", inline=True)
+        embed.add_field(name="Streaks", value=f"Current: **{stats['current_streak']}**\nBest: **{stats['best_streak']}**", inline=True)
+        embed.add_field(name="Global Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
+        embed.add_field(name="Recorded Sessions", value=str(sessions), inline=True)
+        embed.add_field(
+            name="Activity",
+            value=(
+                f"First: **{first_played.strftime('%Y-%m-%d %H:%M UTC')}**\n"
+                f"Last: **{last_played.strftime('%Y-%m-%d %H:%M UTC')}**"
+                if first_played and last_played else "Not enough history"
+            ),
+            inline=False
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text="Tip: Use /tradle daily to keep your streak alive.")
         
         await interaction.response.send_message(embed=embed)
 

@@ -15,9 +15,9 @@ def test_resolve_country(engine):
     assert engine.resolve_country("Japan") == "JP"
 
 def test_distance_calculation(engine):
-    # Paris to London is ~344km
+    # Centroid-based distance between FR and GB is ~1,091km
     dist = engine.calculate_distance("FR", "GB")
-    assert 300 < dist < 400
+    assert 1000 < dist < 1200
 
 def test_bearing_calculation(engine):
     # France is South of UK

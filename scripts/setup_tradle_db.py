@@ -75,10 +75,25 @@ async def setup_tradle_db():
                 is_active BOOLEAN DEFAULT FALSE -- Opt-in ONLY after first usage
             );
         """)
+
+        # 5. tradle_live_posts: persistent mapping for public live progress messages
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tradle_live_posts (
+                round_id INT NOT NULL REFERENCES tradle_rounds(id) ON DELETE CASCADE,
+                user_id BIGINT NOT NULL,
+                guild_id BIGINT NOT NULL,
+                channel_id BIGINT NOT NULL,
+                message_id BIGINT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (round_id, user_id, guild_id)
+            );
+        """)
         
         # Create indexes for performance
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tradle_guesses_round ON tradle_guesses(round_id);")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tradle_guesses_user ON tradle_guesses(user_id);")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_tradle_live_posts_message ON tradle_live_posts(message_id);")
         
         logger.info("Tradle database setup complete!")
         await conn.close()

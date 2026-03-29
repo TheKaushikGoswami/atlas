@@ -126,26 +126,23 @@ class AtlasCog(commands.Cog):
     @app_commands.command(name="help", description="Show information about the bot and commands.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="Atlas — Help Guide",
+            title="Atlas + Tradle Help",
             description=(
-                "**Atlas** is a geographical word game where players take turns naming places. "
-                "The last letter of one answer becomes the first letter of the next!\n\n"
-                "**How to Play:**\n"
-                "1. Use `/join` to enter the lobby.\n"
-                "2. The creator uses `/start` to begin.\n"
-                "3. When it's your turn, type a city, country, or state name in the channel.\n"
-                "4. If you miss a turn or give a wrong answer, you get a strike. Lose too many and you're out!"
+                "**Atlas:** a turn-based geography word game.\n"
+                "Use `/join` -> `/start` and answer with valid place names.\n\n"
+                "**Tradle:** guess the country from export patterns.\n"
+                "Use `/tradle` to play and `/tradlestats` for profile stats."
             ),
             color=discord.Color.blue()
         )
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         
         embed.add_field(
-            name="🎮 Player Commands",
+            name="🎮 Atlas Commands",
             value=(
                 "`/join [team]` - Join the lobby (Team is optional)\n"
+                "`/start` - Start current lobby game\n"
                 "`/leave` - Leave the game or lobby\n"
-                "`/add @user [team]` - Add a player mid-game\n"
                 "`/status` - Check game progress\n"
                 "`/players` - See who's still in the game\n"
                 "`/leaderboard` - See top players\n"
@@ -155,24 +152,33 @@ class AtlasCog(commands.Cog):
         )
         
         embed.add_field(
-            name="⚔️ Team Mode",
+            name="🌍 Tradle Commands",
             value=(
-                "Specify a team name when joining: `/join team:Red`\n"
-                "• Exactly 2 teams required to start.\n"
-                "• Strikes are per-team. One wrong answer = strike for all.\n"
-                "• First team member to answer wins the turn!"
+                "`/tradle` - Open the current Tradle round\n"
+                "`/tradlestats [member]` - View Tradle performance stats\n"
+                "A new Tradle round starts every 8 hours."
             ),
             inline=False
         )
         
         embed.add_field(
-            name="🛠️ Management Commands",
+            name="🗂️ Place Management",
             value=(
-                "`/start` - Start the game (Lobby members only)\n"
+                "`/searchplace <name>` - Search if a place exists (case-insensitive)\n"
+                "`/addplace <name>` - Add a place (Admin)\n"
+                "`/removeplace <name>` - Remove a wrong place (Admin, case-insensitive)\n"
+                "`/sync` - Refresh slash commands (Admin)"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🛠️ Admin Game Controls",
+            value=(
                 "`/stop` - Stop the current game (Admin/Creator)\n"
                 "`/kick @user` - Kick a player (Admin)\n"
                 "`/addplace <name>` - Add a place to the database (Admin)\n"
-                "`/sync` - Refresh slash commands"
+                "`/add @user [team]` - Add a player mid-game (Admin)"
             ),
             inline=False
         )
@@ -186,7 +192,7 @@ class AtlasCog(commands.Cog):
             inline=False
         )
         
-        embed.set_footer(text="Atlas v1.2 | Keep exploring the world!")
+        embed.set_footer(text="Atlas v1.3 | Case-insensitive place tools enabled")
         await interaction.response.send_message(embed=embed)
 
     def get_timeout(self):
@@ -596,6 +602,76 @@ class AtlasCog(commands.Cog):
             )
             embed.set_footer(text=f"Added by {interaction.user.display_name}")
             await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {message}", ephemeral=True)
+
+    @app_commands.command(name="searchplace", description="Search if a place exists in the database.")
+    @app_commands.describe(place="Place name to search (case-insensitive).")
+    async def searchplace(self, interaction: discord.Interaction, place: str):
+        from db.geo_lookup import normalise_name
+
+        query = place.strip()
+        if not query:
+            await interaction.response.send_message("❌ Please provide a place name.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        rows = await self.bot.geo_lookup.search_places(query, limit=10)
+        if not rows:
+            await interaction.followup.send(f"❌ No places found for **{query}**.", ephemeral=True)
+            return
+
+        exact_norm = normalise_name(query)
+        exact = [r for r in rows if r["name_normalised"] == exact_norm]
+
+        lines = []
+        for i, row in enumerate(rows, start=1):
+            marker = "✅" if row in exact else "•"
+            country = row["country_code"] or "--"
+            source = row["source"] or "Unknown"
+            lines.append(f"{marker} `{i}.` **{row['name_display']}** (`{country}` | {source})")
+
+        embed = discord.Embed(
+            title="🔎 Place Search",
+            description="\n".join(lines),
+            color=discord.Color.blue(),
+        )
+        if exact:
+            embed.add_field(name="Exact Match", value=f"Found for **{query}** (case-insensitive).", inline=False)
+        else:
+            embed.add_field(name="Exact Match", value="Not found, showing closest matches.", inline=False)
+        embed.set_footer(text=f"Results: {len(rows)}")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="removeplace", description="Remove a wrongly added place from the database (Admin only).")
+    @app_commands.describe(place="Exact place name to remove (case-insensitive).")
+    async def removeplace(self, interaction: discord.Interaction, place: str):
+        if not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("❌ You don't have permission to remove places.", ephemeral=True)
+            return
+
+        query = place.strip()
+        if not query:
+            await interaction.response.send_message("❌ Please provide a place name.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        success, message = await self.bot.geo_lookup.remove_place(query)
+        if success:
+            embed = discord.Embed(
+                title="🗑️ Place Removed",
+                description=message,
+                color=discord.Color.red()
+            )
+            embed.set_footer(text=f"Removed by {interaction.user.display_name}")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        # Helpful fallback: show closest candidates when exact match fails
+        rows = await self.bot.geo_lookup.search_places(query, limit=5)
+        if rows:
+            suggestions = "\n".join([f"• **{r['name_display']}** (`{r['country_code'] or '--'}`)" for r in rows])
+            await interaction.followup.send(f"❌ {message}\n\nClosest matches:\n{suggestions}", ephemeral=True)
         else:
             await interaction.followup.send(f"❌ {message}", ephemeral=True)
 

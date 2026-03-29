@@ -130,6 +130,69 @@ class GeoLookup:
             logger.error(f"Failed to add place '{name}': {e}")
             return False, f"Database error: {e}"
 
+    async def search_places(self, query: str, limit: int = 10):
+        """
+        Search places by normalised name (case-insensitive).
+        Prioritises prefix matches, then contains matches.
+        """
+        if not self.pool:
+            await self.connect()
+
+        normalised = normalise_name(query)
+        if not normalised:
+            return []
+
+        safe_limit = max(1, min(limit, 25))
+        try:
+            return await self.pool.fetch(
+                """
+                SELECT id, name_display, name_normalised, country_code, source
+                FROM geography
+                WHERE name_normalised LIKE '%' || $1 || '%'
+                ORDER BY
+                    CASE WHEN name_normalised LIKE $1 || '%' THEN 0 ELSE 1 END,
+                    length(name_normalised),
+                    name_normalised
+                LIMIT $2
+                """,
+                normalised,
+                safe_limit,
+            )
+        except Exception as e:
+            logger.error(f"Error searching places for query '{query}': {e}")
+            return []
+
+    async def remove_place(self, name: str) -> tuple[bool, str]:
+        """
+        Remove a place by exact normalised name (case-insensitive).
+        """
+        if not self.pool:
+            await self.connect()
+
+        normalised = normalise_name(name)
+        if not normalised:
+            return False, "Invalid place name."
+
+        try:
+            row = await self.pool.fetchrow(
+                """
+                SELECT id, name_display
+                FROM geography
+                WHERE name_normalised = $1
+                LIMIT 1
+                """,
+                normalised,
+            )
+            if not row:
+                return False, f"**{name.strip()}** was not found in the database."
+
+            await self.pool.execute("DELETE FROM geography WHERE id = $1", row["id"])
+            logger.info(f"Removed place '{row['name_display']}' from database.")
+            return True, f"Removed **{row['name_display']}** from the database."
+        except Exception as e:
+            logger.error(f"Failed to remove place '{name}': {e}")
+            return False, f"Database error: {e}"
+
     async def get_random_place(self, letter: str, country_code: str = "IN", exclude_words: set[str] = None) -> Optional[str]:
         """
         Fetch a random valid place starting with a specific letter.

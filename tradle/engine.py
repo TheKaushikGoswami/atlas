@@ -12,13 +12,24 @@ class TradleEngine:
     def __init__(self, data_dir: Path = Path("data")):
         self.data_dir = data_dir
         self.trade_data = self._load_json("trade_data.json")
-        self.coords = self._load_json("capitals_coords.json")
+        self.centroid_coords = self._load_json("country_centroids.json")
+        if not self.centroid_coords:
+            self.centroid_coords = self._load_packaged_json("country_centroids.json")
+        self.capital_coords = self._load_json("capitals_coords.json")
         self.country_names = self._load_country_names()
 
     def _load_json(self, name: str) -> Dict[str, Any]:
         path = self.data_dir / name
         if not path.exists():
             logger.warning(f"Data file {path} not found.")
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _load_packaged_json(self, name: str) -> Dict[str, Any]:
+        path = Path(__file__).parent / name
+        if not path.exists():
+            logger.warning(f"Packaged data file {path} not found.")
             return {}
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -39,12 +50,17 @@ class TradleEngine:
                         names[self.normalise(name)] = iso2
         
         # Also add names from trade_data (OEC captions might be different)
-        # Using the coords keys as the source of truth for ISO2s we have
-        for iso2 in self.coords.keys():
+        # Using known coordinate keys as source of truth for ISO2s we have.
+        known_isos = set(self.centroid_coords.keys()) | set(self.capital_coords.keys())
+        for iso2 in known_isos:
             # We don't have a direct name map here, but we can assume common names
             pass
             
         return names
+
+    def _get_country_point(self, iso2: str) -> Optional[Dict[str, float]]:
+        """Return country point preferring geographic centroid, fallback to capital coords."""
+        return self.centroid_coords.get(iso2) or self.capital_coords.get(iso2)
 
     @staticmethod
     def normalise(name: str) -> str:
@@ -78,9 +94,9 @@ class TradleEngine:
         return None
 
     def calculate_distance(self, iso_a: str, iso_b: str) -> float:
-        """Calculate Haversine distance in km."""
-        coord_a = self.coords.get(iso_a)
-        coord_b = self.coords.get(iso_b)
+        """Calculate Haversine distance in km (country centroid-based)."""
+        coord_a = self._get_country_point(iso_a)
+        coord_b = self._get_country_point(iso_b)
         if not coord_a or not coord_b:
             return 0.0
 
@@ -96,9 +112,9 @@ class TradleEngine:
         return radius * c
 
     def calculate_bearing(self, iso_a: str, iso_b: str) -> str:
-        """Calculate bearing and return arrow emoji."""
-        coord_a = self.coords.get(iso_a)
-        coord_b = self.coords.get(iso_b)
+        """Calculate centroid-to-centroid bearing and return arrow emoji."""
+        coord_a = self._get_country_point(iso_a)
+        coord_b = self._get_country_point(iso_b)
         if not coord_a or not coord_b:
             return "❓"
 
