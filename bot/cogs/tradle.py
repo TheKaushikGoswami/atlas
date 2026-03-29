@@ -213,7 +213,7 @@ class TradleCog(commands.Cog):
         try:
             players = []
             guild = getattr(channel, "guild", None)
-            for row in results[:5]:
+            for row in results[:6]:
                 data = dict(row)
                 user_id = int(data["user_id"])
                 guesses = self._parse_guesses_field(data.get("guesses_json"))
@@ -384,8 +384,8 @@ class TradleCog(commands.Cog):
                 results = await self.db.get_round_results(old_round.id)
                 if results:
                     summary_msg = f"**Tradle #{old_round.id} Results:**\n"
-                    # Sort results and show top 3
-                    for i, r in enumerate(results[:3]):
+                    # Sort results and show top 6
+                    for i, r in enumerate(results[:6]):
                         crown = "👑 " if i == 0 else ""
                         summary_msg += f"{crown}{r['score']}/6: <@{r['user_id']}>\n"
                 else:

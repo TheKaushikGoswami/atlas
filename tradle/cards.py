@@ -191,9 +191,9 @@ class TradleCardRenderer:
             draw.text((72, 218), "No one finished the previous Tradle round.", fill=cls.TEXT, font=text)
             return cls._to_png_buffer(image)
 
-        top = players[:5]
-        panel_w = 232
-        gap = 14
+        top = players[:6]
+        panel_w = 192
+        gap = 12
         start_x = 42
         y = 160
 

@@ -156,7 +156,7 @@ class AtlasCog(commands.Cog):
             value=(
                 "`/tradle` - Open the current Tradle round\n"
                 "`/tradlestats [member]` - View Tradle performance stats\n"
-                "A new Tradle round starts every 8 hours."
+                "A new Tradle round starts every 4 hours."
             ),
             inline=False
         )
