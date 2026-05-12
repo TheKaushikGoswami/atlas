@@ -146,7 +146,7 @@ dmypy.json
 cython_debug/
 
 # Data and Logs
-data/
+data/*
 !data/trade_data.json
 !data/capitals_coords.json
 *.db
