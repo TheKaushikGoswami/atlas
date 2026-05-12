@@ -147,6 +147,8 @@ cython_debug/
 
 # Data and Logs
 data/
+!data/trade_data.json
+!data/capitals_coords.json
 *.db
 *.log
 *.zip
